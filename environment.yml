@@ -1,0 +1,6 @@
+name: pylabdd
+channels:
+  - conda-forge
+dependencies:
+  - numpy
+  - matplotlib
