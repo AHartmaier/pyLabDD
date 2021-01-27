@@ -35,7 +35,7 @@ setup(
     long_description=readme,
     include_package_data=True,
     keywords='Dislocation Dynamics',
-    name='pyLabDD',
+    name='pylabdd',
     packages=['pylabdd'], #find_packages(exclude=["*tests*"]),
     setup_requires=setup_requirements,
     test_suite='tests',
