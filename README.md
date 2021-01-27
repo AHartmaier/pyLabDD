@@ -35,7 +35,7 @@ $ pytest tests
 
 Online documentation for pyLabDD can be found under https://ahartmaier.github.io/pyLabDD/.
 For offline use, open pyLabDD/docs/index.html to browse through the contents.
-The documentation is generated using [Sphinx](http://www.sphinx-doc.org/en/master/).
+The documentation is generated using [Sphinx](http://www.sphinx-doc.org/en/main/).
 
 ## Jupyter notebooks
 
