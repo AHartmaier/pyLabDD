@@ -44,7 +44,7 @@ Available notebooks with tutorials on the dislocation dynamics method and the Ta
 overview on the contents of the notebooks is available [here](https://ahartmaier.github.io/pyLabDD/examples.html).
 
 The Jupyter notebooks of the pyLabDD tutorials are also available on Binder 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/AHartmaier/pyLabDD.git/master)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/AHartmaier/pyLabDD.git/main)
 
 
 ## Contributions
