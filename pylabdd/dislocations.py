@@ -1,3 +1,13 @@
+# Module pylabdd.dislocations
+'''Module pylabdd.dislocations introduces class ``Dislocations`` that contains attributes 
+and methods needed to handle a dislocation configuration. 
+
+uses NumPy and MatPlotLib.pyplot
+
+Version: 1.0 (2021-01-27)
+Author: Alexander Hartmaier, ICAMS/Ruhr-University Bochum, January 2021
+Email: alexander.hartmaier@rub.de
+distributed under GNU General Public License (GPLv3)'''
 import numpy as np
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
@@ -6,6 +16,21 @@ from pylabdd.pkforce import calc_fpk
 
 #define class for dislocations
 class Dislocations:
+    '''Define class for Dislocations
+
+    Parameters
+    ----------
+    Nd : int
+        Total number of dislocations
+    Nm : int
+        Number of mobile dislocations
+
+    Attributes
+    ----------
+    xpos  : Nd-array
+        x-positions of dislocations
+        
+    '''
     def __init__(self, Nd, Nm, spi1, C, b0, \
                 dmob=1., f0=0.8, m=7, dmax=0.002, \
                 LX=10., LY=10., bc='pbc',\

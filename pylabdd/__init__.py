@@ -7,6 +7,5 @@ __email__ = 'alexander.hartmaier@rub.de'
 __version__ = '1.0'
 
 from pylabdd.dislocations import Dislocations
-from pylabdd.pkforce import calc_fpk_pbc
-from pylabdd.pkforce import calc_fpk
+from pylabdd.pkforce import calc_fpk_pbc, calc_fpk
 
