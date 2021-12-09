@@ -13,16 +13,22 @@ fundamental aspects of plastic deformation associated with the motion and mutual
 
 ## Installation
 
-After download and changing the current working directory to the 'trunk' folder of the repository, the pyLabDD package is installed with the following command 
+The pyLabDD package requires an [Anaconda](https://www.anaconda.com/products/individual) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) environment with a recent Python version. Furthermore, a Fortran compiler is required, e.g. gfortran. On MacOS, this can be achived by installing the command line tools with `xcode-select --install`. 
+
+The pyLabDD package can be installed directly from its GitHub repository with the following command
 
 ```
+$ python -m pip install git+https://github.com/AHartmaier/pyLabDD.git
+```
+
+Alternatively, the repository can be cloned and installed locally. It is recommended to create a conda environment before installation. This can be done by the following the command line instructions
+
+```
+$ git clone https://github.com/AHartmaier/pyLabDD.git ./pyLabDD
+$ cd pyLabDD
+$ conda env create -f environment.yml  
+$ conda activate pylabdd
 $ python -m pip install . --user
-```
-
-After this, the package can by imported with
-
-```python
-import pylabdd as dd
 ```
 
 The correct implementation can be tested with
@@ -31,17 +37,17 @@ The correct implementation can be tested with
 $ pytest tests
 ```
 
-## Documentation
+After this, the package can be used within python, e.g. be importing the entire package with
 
-Online documentation for pyLabDD can be found under https://ahartmaier.github.io/pyLabDD/.
-For offline use, open pyLabDD/docs/index.html to browse through the contents.
-The documentation is generated using [Sphinx](http://www.sphinx-doc.org/en/main/).
+```python
+import pylabdd as dd
+```
+
 
 ## Jupyter notebooks
 
 pyLabDD is conveniently used with Jupyter notebooks. 
-Available notebooks with tutorials on the dislocation dynamics method and the Taylor hardening model are contained in the subfolder `notebooks`. An
-overview on the contents of the notebooks is available [here](https://ahartmaier.github.io/pyLabDD/examples.html).
+Available notebooks with tutorials on the dislocation dynamics method and the Taylor hardening model are contained in the subfolder `notebooks`. 
 
 The Jupyter notebooks of the pyLabDD tutorials are also available on Binder 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/AHartmaier/pyLabDD.git/main)
