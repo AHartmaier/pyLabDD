@@ -33,6 +33,7 @@ class Dislocations:
     '''
     def __init__(self, Nd, Nm, spi1, C, b0, \
                 dmob=1., f0=0.8, m=7, dmax=0.002, \
+                xpos=None, ypos=None,\
                 LX=10., LY=10., bc='pbc',\
                 dt0=0.02
                 ):
@@ -40,8 +41,18 @@ class Dislocations:
         self.Nmob = Nm   # number of mobile dislocations
 
         #dislocation positions
-        self.xpos = np.zeros(Nd)
-        self.ypos = np.zeros(Nd)
+        if xpos is None:
+            self.xpos = np.zeros(Nd)
+        else:
+            if 'float' in str(type(xpos)):
+                xpos = [xpos]
+            self.xpos = np.array(xpos)
+        if ypos is None:
+            self.ypos = np.zeros(Nd)
+        else:
+            if 'float' in str(type(ypos)):
+                ypos = [ypos]
+            self.ypos = ypos
         self.dx   = np.zeros(Nd)
         self.dy   = np.zeros(Nd)
         self.xpeq = None # equilibrium positions, will be defined in Dislocation.relax_disl
@@ -95,7 +106,14 @@ class Dislocations:
         hh = hx + hy
         return self.C*X*(hx - hy)/(hh*hh)
     
-    #initialize dislocation positions
+    '''#create single new dislocation
+    def create(self, x, y, bx, by):
+        self.xpos = np.append(self.xpos, x)
+        self.ypos = np.append(self.ypos, y)
+        self.bx = np.append(self.bx, bx)
+        self.by = np.append(self.by, by)'''
+        
+    #initialize random dislocation positions
     def positions(self, stol=0.25):
         #select slip planes first by random sequential algorithm
         #make sure that slip planes are at least a distance of stol apart
@@ -276,10 +294,10 @@ class Dislocations:
     #calculate and plot stress field on grid
     def plot_stress(self):
         ngp = 150  # number of grid points
-        dx = self.lx/ngp
-        dy = self.ly/ngp
-        xp = np.arange(0, self.lx, dx)
-        yp = np.arange(0, self.ly, dy)
+        #dx = self.lx/ngp
+        #dy = self.ly/ngp
+        xp = np.linspace(0, self.lx, ngp)
+        yp = np.linspace(0, self.ly, ngp)
         XP, YP = np.meshgrid(xp, yp)
         s11 = np.zeros((ngp,ngp))
         s22 = np.zeros((ngp,ngp))
@@ -293,20 +311,26 @@ class Dislocations:
             s12 += self.by[i]*self.sig_xy(YP-self.ypos[i], XP-self.xpos[i])
     
         extent = (0, self.lx, 0, self.ly)
-        fig, axs  = plt.subplots(nrows=1, ncols=3, figsize=(20, 5))
-        fig.subplots_adjust(hspace=0.25)
+        fig, axs  = plt.subplots(nrows=1, ncols=3, figsize=(20, 6))
+        fig.subplots_adjust(hspace=0.2)
 
+        [axs[i].set_xlabel(r'x ($\mu$m)') for i in range(3)]
+        [axs[i].set_ylabel(r'y ($\mu$m)') for i in range(3)]
+        axs[0].set_title(r'$\sigma_{xx}$ (MPa)')
+        axs[1].set_title(r'$\sigma_{yy}$ (MPa)')
+        axs[2].set_title(r'$\sigma_{xy}$ (MPa)')
         im = axs[0].imshow(s11, origin='lower', extent=extent, vmin=-8., vmax=8., cmap=cm.RdBu)
-        fig.colorbar(im, ax=axs[0])
+        #fig.colorbar(im, ax=axs[0])
         im = axs[1].imshow(s22, origin='lower', extent=extent, vmin=-8., vmax=8., cmap=cm.RdBu)
-        fig.colorbar(im, ax=axs[1])
+        #fig.colorbar(im, ax=axs[1])
         im = axs[2].imshow(s12, origin='lower', extent=extent, vmin=-8., vmax=8., cmap=cm.RdBu)
         fig.colorbar(im, ax=axs[2])
     
+        # plot markers for dislocations if not too many
+        if self.Ntot<10:
+            [axs[i].scatter(self.xpos, self.ypos, s=30, c='yellow', marker='o') for i in range(3)]
+        
         #plot arrows for mobile dislocations
-        #axs[0].scatter(self.xpos[0:self.Nmob], self.ypos[0:self.Nmob], s=50, c='yellow', marker='o')
-        #axs[1].scatter(self.xpos[0:self.Nmob], self.ypos[0:self.Nmob], s=50, c='yellow', marker='o')
-        #axs[2].scatter(self.xpos[0:self.Nmob], self.ypos[0:self.Nmob], s=50, c='yellow', marker='o')
         for i in range(self.Nmob):
             dx = self.dx[i]
             dy = self.dy[i]
@@ -323,4 +347,35 @@ class Dislocations:
         fig.tight_layout()
         plt.show()
 
-
+    #create line plot with Peach Koehler force
+    def calc_PKforce(self, hy, ngp=150, x1=0.01, x2=None):
+        '''Calculate Peach-Koehler (PK) force along a given plane within the 
+        current dislocation configuration
+        
+        Parameters:
+        hy  : float
+            y-offset for line of which PK-force is calculate
+        npg (optional) : int
+            number of grid points
+        x1 (optional)  : int
+            start point of line plot
+        x2 (optional)  : int 
+            end point of line plot
+        
+        #Returns:
+        fpk : (npg,)-array
+            PK force (units: mN/m)
+        xp  : (npg,)-array
+            x-positions at which PK force is evaluted (units: micron)
+        '''
+        
+        if x2 is None:
+            x2=self.LX
+        Nd = len(self.xpos)  # number of dislocation in group
+        xp = np.linspace(x1, x2, num=ngp)
+        yp = np.ones(ngp)*hy
+        fpk = np.zeros(ngp)
+        for i in range(Nd):
+            fpk += self.b0*self.bx[i]*self.sig_xy(xp-self.xpos[i], yp-self.ypos[i])
+            fpk += self.b0*self.by[i]*self.sig_xy(yp-self.ypos[i], xp-self.xpos[i])
+        return fpk*1000, xp
