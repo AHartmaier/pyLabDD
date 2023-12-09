@@ -17,8 +17,7 @@ import numpy as np
 
 def calc_fpk_pbc(xpos, ypos, bx, by, tau0, len_x, len_y, Nmob, N):
     FPK = np.zeros((2, Nmob), dtype=np.float64)
-    pi = 4.0 * np.arctan(1.0)
-    pih = pi / len_x
+    pih = np.pi / len_x
     pih2 = pih * pih
     imunit = 1.0j
 
@@ -37,7 +36,7 @@ def calc_fpk_pbc(xpos, ypos, bx, by, tau0, len_x, len_y, Nmob, N):
             hx = xpos[i]
             hy = ypos[i]
 
-            for m in range(4):
+            for m in range(3):
                 z = px - hx + (py - (hy + float(m) * len_y)) * imunit
                 z = z * pih
                 hcre = 1.0 / np.sin(z)
