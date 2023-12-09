@@ -4,3 +4,7 @@ channels:
 dependencies:
   - numpy
   - matplotlib
+  - pytest
+  - jupyter
+  - jupyterlab
+  
