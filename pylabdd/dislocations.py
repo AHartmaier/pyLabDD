@@ -4,15 +4,15 @@ and methods needed to handle a dislocation configuration.
 
 uses NumPy and MatPlotLib.pyplot
 
-Version: 1.0 (2021-01-27)
-Author: Alexander Hartmaier, ICAMS/Ruhr-University Bochum, January 2021
+Version: 1.1 (2023-12-09)
+Author: Alexander Hartmaier, ICAMS/Ruhr-University Bochum, December 2023
 Email: alexander.hartmaier@rub.de
 distributed under GNU General Public License (GPLv3)'''
+
 import numpy as np
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
-from pylabdd.pkforce import calc_fpk_pbc
-from pylabdd.pkforce import calc_fpk
+from pylabdd.pkforce import calc_fpk_pbc, calc_fpk
 
 #define class for dislocations
 class Dislocations:
@@ -117,10 +117,10 @@ class Dislocations:
     def positions(self, stol=0.25):
         #select slip planes first by random sequential algorithm
         #make sure that slip planes are at least a distance of stol apart
-        self.ypos[0] = self.ly*np.random.rand(1)
+        self.ypos[0] = self.ly*np.random.rand(1)[0]
         isl = 1
         while isl<self.Ntot:
-            hy = self.ly*np.random.rand(1)
+            hy = self.ly*np.random.rand(1)[0]
             flag = np.logical_and(self.ypos[0:isl]<hy+stol, self.ypos[0:isl]>hy-stol)
             if not np.any(flag):
                 self.ypos[isl] = hy

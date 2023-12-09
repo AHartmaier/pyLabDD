@@ -3,10 +3,8 @@
 
 """The setup script."""
 
-from numpy.distutils.core import setup, Extension
-#from setuptools import find_packages
+from setuptools import setup
 
-lib = Extension(name='pylabdd.pkforce', sources=['pylabdd/PK_force.F90'])
 
 with open('README.md') as readme_file:
     readme = readme_file.read()
@@ -24,13 +22,12 @@ setup(
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Natural Language :: English',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
     ],
     description="Python Laboratory for Dislocation Dynamics",
-    install_requires=['numpy', 'matplotlib'],
-    ext_modules = [lib],
+    install_requires=['numpy', 'matplotlib', 'pytest'],
     license="GNU General Public License v3",
     long_description=readme,
     include_package_data=True,
@@ -41,6 +38,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/AHartmaier/pyLabDD',
-    version='1.0',
+    version='1.1',
     zip_safe=False,
 )
