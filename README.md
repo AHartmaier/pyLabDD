@@ -67,6 +67,11 @@ pyLabDD requires the following packages as imports:
  - [NumPy](http://numpy.scipy.org) for array handling
  - [MatPlotLib](https://matplotlib.org/) for graphical output
 
+## Versions
+
+ - v1.0: Initial version (with F90 subroutine)
+ - v1.1: Pure Python version (slower, but more robust installation as NumPy no longer supports distutils)
+
 ## License
 
 The pyLabDD package comes with ABSOLUTELY NO WARRANTY. This is free
