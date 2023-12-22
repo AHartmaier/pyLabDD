@@ -1,3 +1,4 @@
+load
 # pyLabDD
 
 ### Python Laboratory for Dislocation Dynamics
@@ -13,7 +14,7 @@ fundamental aspects of plastic deformation associated with the motion and mutual
 
 ## Installation
 
-The pyLabDD package requires an [Anaconda](https://www.anaconda.com/products/individual) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) environment with a recent Python version. Furthermore, a Fortran compiler is required, e.g. gfortran. On MacOS, this can be achived by installing the command line tools with `xcode-select --install`. 
+The pyLabDD package requires an [Anaconda](https://www.anaconda.com/products/individual) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) environment with a recent Python version. 
 
 The pyLabDD package can be installed directly from its GitHub repository with the following command
 
@@ -28,7 +29,7 @@ $ git clone https://github.com/AHartmaier/pyLabDD.git ./pyLabDD
 $ cd pyLabDD
 $ conda env create -f environment.yml  
 $ conda activate pylabdd
-$ python -m pip install . --user
+$ python -m pip install . [--user]
 ```
 
 The correct implementation can be tested with
@@ -43,6 +44,23 @@ After this, the package can be used within python, e.g. be importing the entire 
 import pylabdd as dd
 ```
 
+## Speedup with Fortran subroutines
+The subroutines to calculate the Peach-Koehler (PK) force on dislocations are rather time consuming. A Fortran implementation of these subroutines can bring a considerable seepdup of the simulation. To install these faster subroutines, a Fortran compiler is required, e.g. gfortran. On MacOS, this can be achived by installing the command line tools with `xcode-select --install`. The embedding of the Fortran subroutines into Python is accomplished with the leightweight Fortran wrapper [fmodpy](https://pypi.org/project/fmodpy/).
+
+To activate the Fortran subroutines, issue the command
+
+```
+$ python setup_fortran.py
+```
+
+After that, the package can be used in the usual way. You can control the success of the Fortran implementation by
+
+```
+$ python
+>>> import pylabdd
+```
+
+This will inform you if the standard Python or the faster Fortran subroutines to calculate the PK force will be used.
 
 ## Jupyter notebooks
 
@@ -66,11 +84,12 @@ pyLabDD requires the following packages as imports:
 
  - [NumPy](http://numpy.scipy.org) for array handling
  - [MatPlotLib](https://matplotlib.org/) for graphical output
+ - [fmodpy](https://pypi.org/project/fmodpy/) for embedding of faster Fortran subroutines for PK force calculation (optional)
 
 ## Versions
 
  - v1.0: Initial version (with F90 subroutine)
- - v1.1: Pure Python version (slower, but more robust installation as NumPy no longer supports distutils)
+ - v1.1: Pure Python version (with optional F90 subroutines)
 
 ## License
 

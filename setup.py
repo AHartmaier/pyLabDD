@@ -5,12 +5,10 @@
 
 from setuptools import setup
 
-
-with open('README.md') as readme_file:
-    readme = readme_file.read()
-
 test_requirements = ['pytest>=3', ]
 setup_requirements = ['pytest-runner', ]
+with open('README.md') as readme_file:
+    readme = readme_file.read()
 
 setup(
     author="Alexander Hartmaier",
@@ -27,13 +25,13 @@ setup(
         'Programming Language :: Python :: 3.11',
     ],
     description="Python Laboratory for Dislocation Dynamics",
-    install_requires=['numpy', 'matplotlib', 'pytest'],
+    install_requires=['numpy', 'matplotlib', 'pytest', 'fmodpy'],
     license="GNU General Public License v3",
     long_description=readme,
     include_package_data=True,
     keywords='Dislocation Dynamics',
     name='pylabdd',
-    packages=['pylabdd'], #find_packages(exclude=["*tests*"]),
+    packages=['pylabdd'],
     setup_requires=setup_requirements,
     test_suite='tests',
     tests_require=test_requirements,

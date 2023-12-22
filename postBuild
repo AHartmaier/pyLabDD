@@ -1,1 +1,3 @@
 python -m pip install .
+python setup_fortran.py
+
