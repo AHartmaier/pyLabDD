@@ -1,6 +1,6 @@
 ! Fortran90 subroutine to be used in Python
 ! calculate Peach-Koehler force on dislocation configuration
-! compile with > f2py -c --fcompiler=gfortran -m PK_force PK_force.F90
+! will be embedded via the fmodpy wrapper
 
 subroutine calc_fpk_pbc(xpos, ypos, bx, by, tau0, len_x, len_y, FPK, Nmob, N)
 implicit none
