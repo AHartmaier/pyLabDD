@@ -34,7 +34,7 @@ def calc_fpk_py(tau0, dsl):
     sigdxy += tau0   # add applied shear stress to internal stress
     hh1 = np.multiply(sigdxy, dsl.bx[0:dsl.Nmob]) + np.multiply(sigdyy,dsl.by[0:dsl.Nmob])
     hh2 = np.multiply(sigdxx, dsl.bx[0:dsl.Nmob]) + np.multiply(sigdxy,dsl.by[0:dsl.Nmob])
-    return np.array([hh1, hh2])
+    return np.array([hh1, -hh2])
 
 #define material parameters
 #units: stress: MPa; length: micron; time: microseconds
@@ -56,13 +56,13 @@ np.random.seed(110)  # seed RNG
 #Validation of different methods for calculation of PK force
 d1 = dd.Dislocations(5,5,0.,C,b0, LX=LX, LY=LY, bc=bc, dt0=dt0)
 d1.positions()
-#d1.plot_stress()
 tau0=0.
 
 # Fortran subroutine for periodic BC
-ffp = 0.5*C*dd.calc_fpk_pbc(d1.xpos, d1.ypos, d1.bx, d1.by, tau0, 1.e6*LX, 1.e6*LY, d1.Ntot, d1.Ntot)
+ffp = d1.calc_force(tau0=tau0, lx=1.e6*LX, ly=1.e6*LY)
 # fortran subroutine for fixed BC
-fff = C*dd.calc_fpk(d1.xpos, d1.ypos, d1.bx, d1.by, tau0, d1.Ntot, d1.Ntot)
+d1.bc = 'fixed'
+fff = d1.calc_force(tau0=tau0)
 # Python expression (reference)
 ffa = calc_fpk_py(tau0, d1)
 

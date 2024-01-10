@@ -4,8 +4,6 @@
 
 __author__ = """Alexander Hartmaier"""
 __email__ = 'alexander.hartmaier@rub.de'
-__version__ = '1.1'
+__version__ = '1.2'
 
 from pylabdd.dislocations import Dislocations
-from pylabdd.pkforce import calc_fpk_pbc, calc_fpk
-

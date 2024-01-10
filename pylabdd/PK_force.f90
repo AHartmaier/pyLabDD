@@ -3,6 +3,9 @@
 ! will be embedded via the fmodpy wrapper
 
 subroutine calc_fpk_pbc(xpos, ypos, bx, by, tau0, len_x, len_y, FPK, Nmob, N)
+! Solution based on Eqs (2.1.25a) and (2.1.25b) from Linyong Pang "A new O(N) method for
+! modeling and simulating the behavior of a large number of dislocations in
+! anisotropic linear elastic media", PhD thesis, Stanford University, USA. 2001 
 implicit none
 integer, intent(in) :: N
 integer, intent(in) :: Nmob
@@ -68,8 +71,8 @@ do j=1, Nmob
         end if
      end do   !loop over m
    end do  ! loop over i
-   FPK(1,j) = h12*bx(j) + h22*by(j)
-   FPK(2,j) = h11*bx(j) + h12*by(j)
+   FPK(1,j) = 0.5*(h12*bx(j) + h22*by(j))
+   FPK(2,j) = -0.5*(h11*bx(j) + h12*by(j))
 end do   ! loop over j
 end subroutine calc_fpk_pbc
 
@@ -110,6 +113,6 @@ do i=1, Nmob
         h12 = h12 + hby*y*(hy - hx)/hh
     end do
     FPK(1,i) = h12*bx(i) + h22*by(i)
-    FPK(2,i) = h11*bx(i) + h12*by(i)
+    FPK(2,i) = -(h11*bx(i) + h12*by(i))
 end do
 end subroutine calc_fpk

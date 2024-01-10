@@ -4,17 +4,15 @@ and methods needed to handle a dislocation configuration.
 
 uses NumPy and MatPlotLib.pyplot
 
-Version: 1.1 (2023-12-09)
+Version: 1.2 (2024-01-10)
 Author: Alexander Hartmaier, ICAMS/Ruhr-University Bochum, December 2023
 Email: alexander.hartmaier@rub.de
 distributed under GNU General Public License (GPLv3)'''
 
+import logging
 import numpy as np
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
-import logging
-logging.basicConfig(level=logging.INFO)
-
 try:
     import os
     WORK_DIR = os.path.expanduser('~') + '/.pylabdd'  # working directory for temporary files
@@ -22,13 +20,16 @@ try:
         MAIN_DIR = f.read()  # directory in which repository is cloned
     CWD = os.getcwd()
     os.chdir(MAIN_DIR)
-    import PK_force as pkf
+    from PK_force import calc_fpk_pbc, calc_fpk
     os.chdir(CWD)
     print('Using Fortran subroutine for PK force.')
 except Exception as e:
-    logging.error(f'An unexpected exception occurred: {e}')
-    import pylabdd.pkforce as pkf
+    logging.error(f'An exception has occurred while importing fortran module: {e}')
+    from pylabdd.pkforce import calc_fpk_pbc, calc_fpk
     print('Using Python subroutines for PK force.')
+    
+logging.basicConfig(level=logging.INFO)
+
 
 #define class for dislocations
 class Dislocations:
@@ -129,6 +130,27 @@ class Dislocations:
         self.bx = np.append(self.bx, bx)
         self.by = np.append(self.by, by)'''
         
+    def calc_force(self, xp=None, yp=None, Nm=None, tau0=None,
+                   lx=None, ly=None):
+        if xp is None:
+            xp = self.xpos
+        if yp is None:
+            yp = self.ypos
+        if Nm is None:
+            Nm = self.Nmob
+        if tau0 is None:
+            tau0 = 0.
+        if lx is None:
+            lx = self.lx
+        if ly is None:
+            ly = self.ly
+        if self.bc=='pbc':
+            FPK = self.C*calc_fpk_pbc(xp, yp, self.bx, self.by, tau0, 
+                                      lx, ly, Nm, self.Ntot)
+        else:
+            FPK = self.C*calc_fpk(xp, yp, self.bx, self.by, tau0, Nm, self.Ntot)
+        return FPK
+        
     #initialize random dislocation positions
     def positions(self, stol=0.25):
         #select slip planes first by random sequential algorithm
@@ -164,10 +186,10 @@ class Dislocations:
         xp[0:Nm] += dx
         yp[0:Nm] += dy
         if self.bc=='pbc':
-            FPK = 0.5*self.C*pkf.calc_fpk_pbc(xp, yp, self.bx, self.by, tau0, 
+            FPK = self.C*calc_fpk_pbc(xp, yp, self.bx, self.by, tau0, 
                                           self.lx, self.ly, Nm, self.Ntot)
         else:
-            FPK = self.C*pkf.calc_fpk(xp, yp, self.bx, self.by, tau0, Nm, self.Ntot)
+            FPK = self.C*calc_fpk(xp, yp, self.bx, self.by, tau0, Nm, self.Ntot)
         fsp = np.sum(np.multiply(FPK,np.absolute(np.array([self.bx[0:Nm],\
                                                 self.by[0:Nm]]))), axis=0)               
         return np.sum(np.absolute(fsp))/Nm
@@ -184,19 +206,17 @@ class Dislocations:
     
     #update dislocation positions
     def move_disl(self, tau0, Nm, ml, dt, bc=None):
-        #use Fortran subroutine for efficiency
-        #otherwise invoke Python subroutine calc_fpk from this class
         if bc is None:
             bc = self.bc
         if bc=='pbc':
-            FPK = 0.5*self.C*pkf.calc_fpk_pbc(self.xpos, self.ypos, self.bx, self.by, \
+            FPK = self.C*calc_fpk_pbc(self.xpos, self.ypos, self.bx, self.by, \
                                          tau0, self.lx, self.ly, Nm, self.Ntot)
             FPK[:][1] *= -1. 
             #define maximum dislocation displacement
             lb = -self.dmax
             ub = self.dmax
         elif bc=='fixed':
-            FPK = self.C*pkf.calc_fpk(self.xpos, self.ypos, self.bx, self.by, tau0, Nm, self.Ntot)
+            FPK = self.C*calc_fpk(self.xpos, self.ypos, self.bx, self.by, tau0, Nm, self.Ntot)
             #define possible range to move a dislocation within box
             lb = -np.minimum(np.abs(self.xpos[0:Nm]/self.bx[0:Nm]), np.ones(Nm)*self.dmax)
             ub =  np.minimum(np.abs((self.lx-self.xpos[0:Nm])/self.bx[0:Nm]), np.ones(Nm)*self.dmax)
@@ -221,10 +241,10 @@ class Dislocations:
         jc = 0
         while len(ih)>0 and jc<5:
             if bc=='pbc':
-                FPK = 0.5*self.C*pkf.calc_fpk_pbc(xp, yp, self.bx, self.by, \
+                FPK = self.C*calc_fpk_pbc(xp, yp, self.bx, self.by, \
                                              tau0, self.lx, self.ly, Nm, self.Ntot)
             elif bc=='fixed':
-                FPK = self.C*pkf.calc_fpk(xp, yp, self.bx, self.by, tau0, Nm, self.Ntot)
+                FPK = self.C*calc_fpk(xp, yp, self.bx, self.by, tau0, Nm, self.Ntot)
             fsp2 = np.sum(np.multiply(FPK,np.absolute(np.array([self.bx[0:Nm],\
                    self.by[0:Nm]]))), axis=0)               
             hh = fsp*fsp2
@@ -393,5 +413,5 @@ class Dislocations:
         fpk = np.zeros(ngp)
         for i in range(Nd):
             fpk += self.b0*self.bx[i]*self.sig_xy(xp-self.xpos[i], yp-self.ypos[i])
-            fpk += self.b0*self.by[i]*self.sig_xy(yp-self.ypos[i], xp-self.xpos[i])
+            fpk -= self.b0*self.by[i]*self.sig_xy(yp-self.ypos[i], xp-self.xpos[i])
         return fpk*1000, xp

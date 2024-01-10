@@ -16,6 +16,10 @@ distributed under GNU General Public License (GPLv3)'''
 import numpy as np
 
 def calc_fpk_pbc(xpos, ypos, bx, by, tau0, len_x, len_y, Nmob, N):
+    """ Solution based on Eqs (2.1.25a) and (2.1.25b) from Linyong Pang "A new O(N) method for
+    modeling and simulating the behavior of a large number of dislocations in
+    anisotropic linear elastic media", PhD thesis, Stanford University, USA. 2001 
+    """
     FPK = np.zeros((2, Nmob), dtype=np.float64)
     pih = np.pi / len_x
     pih2 = pih * pih
@@ -71,9 +75,9 @@ def calc_fpk_pbc(xpos, ypos, bx, by, tau0, len_x, len_y, Nmob, N):
                     h12 = h12 + np.imag(pyy1)
 
         FPK[0, j] = h12 * bx[j] + h22 * by[j]
-        FPK[1, j] = h11 * bx[j] + h12 * by[j]
+        FPK[1, j] = -(h11 * bx[j] + h12 * by[j])
 
-    return FPK
+    return 0.5*FPK
 
 def calc_fpk(xpos, ypos, bx, by, tau0, Nmob, N):
     FPK = np.zeros((2, Nmob), dtype=np.float64)
@@ -104,6 +108,6 @@ def calc_fpk(xpos, ypos, bx, by, tau0, Nmob, N):
             h12 = h12 + hby * y * (hy - hx) / hh
 
         FPK[0, i] = h12 * bx[i] + h22 * by[i]
-        FPK[1, i] = h11 * bx[i] + h12 * by[i]
+        FPK[1, i] = -(h11 * bx[i] + h12 * by[i])
 
     return FPK
