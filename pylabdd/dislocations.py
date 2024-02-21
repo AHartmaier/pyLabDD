@@ -10,12 +10,20 @@ Email: alexander.hartmaier@rub.de
 distributed under GNU General Public License (GPLv3)'''
 
 import logging
+import os
+import sys
 import numpy as np
 import matplotlib.cm as cm
 import matplotlib.pyplot as plt
+
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+
 try:
-    import os
-    WORK_DIR = os.path.expanduser('~') + '/.pylabdd'  # working directory for temporary files
+    WORK_DIR = os.environ['CONDA_PREFIX']  # if path to conda env is set, use this one
+except:
+    # otherwise fall back to user home
+    WORK_DIR = os.path.join(os.path.expanduser('~'), '.pylabdd')
+try:
     with open(WORK_DIR + '/PATHS.txt', 'r') as f:
         MAIN_DIR = f.read()  # directory in which repository is cloned
     CWD = os.getcwd()
@@ -27,8 +35,6 @@ except Exception as e:
     logging.error(f'An exception has occurred while importing fortran module: {e}')
     from pylabdd.pkforce import calc_fpk_pbc, calc_fpk
     print('Using Python subroutines for PK force.')
-    
-logging.basicConfig(level=logging.INFO)
 
 
 #define class for dislocations
