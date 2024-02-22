@@ -20,12 +20,24 @@ logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
 try:
     WORK_DIR = os.environ['CONDA_PREFIX']  # if path to conda env is set, use this one
-except:
+    path = os.path.join(WORK_DIR, 'PATHS.txt')
+    with open(path, 'r') as f:
+        MAIN_DIR = f.read()  # directory in which repository is cloned
+except Exception as e:
     # otherwise fall back to user home
     WORK_DIR = os.path.join(os.path.expanduser('~'), '.pylabdd')
+    path = os.path.join(WORK_DIR, 'PATHS.txt')
+    if os.path.isfile(path):
+        with open(path, 'r') as f:
+            MAIN_DIR = f.read()  # directory in which repository is cloned
+    else:
+        logging.error(f'No path information for fortran module in conda env or user home: {e}')
+        logging.error('Trying CWD.')
+        MAIN_DIR = os.getcwd()
+        if MAIN_DIR[-9:] == 'notebooks':
+            MAIN_DIR = MAIN_DIR[:-10]  # remove '/notebooks' from end of path
+    
 try:
-    with open(WORK_DIR + '/PATHS.txt', 'r') as f:
-        MAIN_DIR = f.read()  # directory in which repository is cloned
     CWD = os.getcwd()
     os.chdir(MAIN_DIR)
     from PK_force import calc_fpk_pbc, calc_fpk
