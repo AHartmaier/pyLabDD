@@ -1,4 +1,7 @@
-load
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/AHartmaier/pyLabDD.git/main)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![License: CC BY-NC-SA 4.0](https://licensebuttons.net/l/by-nc-sa/4.0/80x15.png)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
 # pyLabDD
 
 ### Python Laboratory for Dislocation Dynamics
@@ -16,23 +19,23 @@ fundamental aspects of plastic deformation associated with the motion and mutual
 
 The pyLabDD package requires an [Anaconda](https://www.anaconda.com/products/individual) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) environment with a recent Python version. 
 
-The pyLabDD package can be installed directly from its GitHub repository with the following command
+The pyLabDD package can be installed directly from PyPI with the following command
 
 ```
-$ python -m pip install git+https://github.com/AHartmaier/pyLabDD.git
+$ pip install pylabdd
 ```
 
-Alternatively, the repository can be cloned and installed locally. It is recommended to create a conda environment before installation. This can be done by the following the command line instructions
+Alternatively, the complete repository can be cloned and installed locally. It is recommended to create a conda environment before installation. This can be done by the following the command line instructions
 
 ```
 $ git clone https://github.com/AHartmaier/pyLabDD.git ./pyLabDD
 $ cd pyLabDD
 $ conda env create -f environment.yml  
 $ conda activate pylabdd
-$ python -m pip install . [--user]
+$ python -m pip install .
 ```
 
-The correct implementation can be tested with
+For this installation method, the correct implementation of the package can be tested with
 
 ```
 $ pytest tests
@@ -47,20 +50,7 @@ import pylabdd as dd
 ## Speedup with Fortran subroutines
 The subroutines to calculate the Peach-Koehler (PK) force on dislocations are rather time consuming. A Fortran implementation of these subroutines can bring a considerable seepdup of the simulation. To install these faster subroutines, a Fortran compiler is required, e.g. gfortran. On MacOS, this can be achived by installing the command line tools with `xcode-select --install`. The embedding of the Fortran subroutines into Python is accomplished with the leightweight Fortran wrapper [fmodpy](https://pypi.org/project/fmodpy/).
 
-To activate the Fortran subroutines, issue the command
-
-```
-$ python setup_fortran.py
-```
-
-After that, the package can be used in the usual way. You can control the success of the Fortran implementation by
-
-```
-$ python
->>> import pylabdd
-```
-
-This will inform you if the standard Python or the faster Fortran subroutines to calculate the PK force will be used.
+During the installation process it will be automatically tried to implement the faster Fortran subroutines. On import of the pylabdd package into your Python code, you will be informed if the standard Python or the faster Fortran subroutines to calculate the PK force are being used. You will also be notifeid about any error messages during compiliation.
 
 ## Jupyter notebooks
 
@@ -90,6 +80,7 @@ pyLabDD requires the following packages as imports:
 
  - v1.0: Initial version (with F90 subroutine)
  - v1.1: Pure Python version (with optional F90 subroutines)
+ - V1.2: Automatic compilation of F90 subroutines with fallback on Python version
 
 ## License
 

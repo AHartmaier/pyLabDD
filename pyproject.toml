@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61", "wheel", "fmodpy"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pylabdd"
+version = "1.2.1"
+description = "Python Laboratory for Dislocation Dynamics"
+readme = "README.md"
+requires-python = ">=3"
+license = { text = "GPL-3.0-or-later" }
+
+authors = [
+  { name = "Alexander Hartmaier", email = "alexander.hartmaier@rub.de" }
+]
+
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13"
+]
+
+dependencies = [
+  "numpy",
+  "matplotlib",
+  "pytest",
+  "fmodpy"
+]
+
+[project.optional-dependencies]
+dev = ["pytest-runner", "black", "build", "twine"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["pylabdd"]
+
+[tool.setuptools.package-data]
+pylabdd = ["*.f90"]
