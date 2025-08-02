@@ -76,7 +76,7 @@ pyLabDD requires the following packages as imports:
  - [MatPlotLib](https://matplotlib.org/) for graphical output
  - [fmodpy](https://pypi.org/project/fmodpy/) for embedding of faster Fortran subroutines for PK force calculation (optional)
 
-## Versions
+## Version history
 
  - v1.0: Initial version (with F90 subroutine)
  - v1.1: Pure Python version (with optional F90 subroutines)
@@ -89,6 +89,6 @@ software, and you are welcome to redistribute it under the conditions of
 the GNU General Public License
 ([GPLv3](http://www.fsf.org/licensing/licenses/gpl.html))
 
-The contents of the examples and notebooks are published under the 
+The contents of examples, notebooks and documentation are published under the 
 Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License
 ([CC BY-NC-SA 4.0](http://creativecommons.org/licenses/by-nc-sa/4.0/))

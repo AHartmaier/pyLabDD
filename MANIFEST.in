@@ -1,2 +1,3 @@
 include src/pylabdd/*.f90
-
+include README.md
+include LICENSE
