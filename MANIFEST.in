@@ -1,3 +1,13 @@
-include src/pylabdd/*.f90
-include README.md
+# Include build helper scripts
+include setup_fortran.py
+
+# Include important metadata files
+include pyproject.toml
 include LICENSE
+include README.md
+
+# Include Fortran sources
+recursive-include src/pylabdd *.f90
+
+# (optional) Include test files
+# recursive-include tests *.py

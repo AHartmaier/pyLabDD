@@ -1,14 +1,14 @@
 [build-system]
-requires = ["setuptools>=61", "wheel", "fmodpy"]
+requires = ["setuptools>=64", "wheel", "fmodpy"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pylabdd"
-version = "1.2.1"
+version = "1.2.2"
 description = "Python Laboratory for Dislocation Dynamics"
 readme = "README.md"
 requires-python = ">=3"
-license = { text = "GPL-3.0-only" }
+license = { file = "LICENSE" }
 
 authors = [
   { name = "Alexander Hartmaier", email = "alexander.hartmaier@rub.de" }
@@ -35,9 +35,17 @@ dependencies = [
 dev = ["pytest-runner", "black", "build", "twine"]
 
 [tool.setuptools]
+include-package-data = true
 package-dir = {"" = "src"}
 packages = ["pylabdd"]
 
 [tool.setuptools.package-data]
-pylabdd = ["*.f90"]
+pylabdd = ["PK_force/*", "*.f90", "*.so", "*.pyd"]
 
+# Dummy extension to force call of build_ext
+[[tool.setuptools.ext-modules]]
+name = "pylabdd.PK_force"
+sources = []  # no sources build is done in setup_fortran.py
+
+[tool.setuptools.cmdclass]
+build_ext = "setup_fortran.BuildFortran"
