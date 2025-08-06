@@ -2,7 +2,6 @@ from setuptools import Extension
 from setuptools.command.build_ext import build_ext
 import subprocess
 import sys
-import shutil
 from pathlib import Path
 
 
@@ -52,23 +51,6 @@ class BuildFortran(build_ext):
         except Exception as e:
             print("[BuildFortran] Fehler bei der Fortran-Kompilierung!")
             raise e
-            
-        # Nach dem Build den Unterordner PK_force auflösen
-        subdir = fortran_dir / "PK_force"
-        if subdir.exists():
-            for file in subdir.iterdir():
-                target = fortran_dir / file.name
-                print(f"[BuildFortran] Verschiebe {file} -> {target}")
-                if target.exists():
-                    target.unlink()
-                shutil.move(str(file), str(target))
-            shutil.rmtree(subdir)
-
-        so_files = list(fortran_dir.glob("PK_force*.so"))
-        if so_files:
-            print(f"[BuildFortran] Erfolgreich kompiliert: {so_files}")
-        else:
-            print("[BuildFortran] Keine .so-Datei gefunden!")
 
         # Prüfen ob .so-Datei entstanden ist
         so_files = list(fortran_dir.glob("PK_force*.so"))

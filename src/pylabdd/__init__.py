@@ -6,8 +6,13 @@
 import os
 import logging
 from importlib.metadata import version
-from .dislocations import Dislocations
-from .PK_force import calc_fpk, calc_fpk_pbc
+from pylabdd.dislocations import Dislocations
+
+# get absolute path to complied F90 paket
+#package_path = os.path.abspath(__file__)
+#if package_path not in sys.path:
+#    sys.path.insert(0, package_path)
+from pylabdd.PK_force import calc_fpk, calc_fpk_pbc
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
