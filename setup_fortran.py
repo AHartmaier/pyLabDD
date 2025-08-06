@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 # Dummy Extension, damit setuptools garantiert build_ext ausführt
-#dummy_extension = Extension("pylabdd.PK_force", sources=[])
+dummy_extension = Extension("pylabdd.PK_force", sources=[])
 
 
 class BuildFortran(build_ext):
@@ -64,4 +64,4 @@ class BuildFortran(build_ext):
 
 
 # Wird von setuptools in pyproject.toml importiert
-#ext_modules = [dummy_extension]
+ext_modules = [dummy_extension]
