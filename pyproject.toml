@@ -46,4 +46,4 @@ ext-modules = [
 build_py = "pylabdd.buildtools.setup_fortran.BuildFortran"
 
 [tool.setuptools.package-data]
-pylabdd = ["PK_force/*", "buildtools/*", "*.f90"]
+pylabdd = ["PK_force/*", "PK_force_py/*", "buildtools/*", "*.f90"]
