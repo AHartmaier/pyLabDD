@@ -4,10 +4,11 @@ and methods needed to handle a dislocation configuration.
 
 uses NumPy and MatPlotLib.pyplot
 
-Version: 1.2 (2024-01-10)
 Author: Alexander Hartmaier, ICAMS/Ruhr-University Bochum, December 2023
 Email: alexander.hartmaier@rub.de
-distributed under GNU General Public License (GPLv3)'''
+distributed under GNU General Public License (GPLv3)
+August 2025
+'''
 
 import logging
 import os
@@ -41,7 +42,10 @@ class Dislocations:
                 LX=10., LY=10., bc='pbc',\
                 dt0=0.02
                 ):
-        from pylabdd import calc_fpk_pbc, calc_fpk  # lazy import
+        # import locally from installed package, as either F90 subroutines from PK_force
+        # might be used or slower Python subroutines from PK_force_py as fallback option 
+        # in case of compilation issues
+        from pylabdd import calc_fpk_pbc, calc_fpk
         self.cfpk = calc_fpk
         self.cfpk_pbc = calc_fpk_pbc
         

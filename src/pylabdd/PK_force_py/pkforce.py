@@ -1,16 +1,18 @@
-# Module pylabdd.dislocations
+# Module pylabdd.pkforce
 '''Module pylabdd.pkforce introduces subroutine to calculate 
 Peach-Koehler force either with periodic boundary conditions Calc_fpk_pbc() 
-or in infinite medium calc_fpk(). 
+or in infinite medium calc_fpk() as pure python code. Used as fallback option
+to faster F90 subroutines in case of issues during compilation. 
 
 Kudos to ChatPGT for translation of F90 code.
 
 uses NumPy
 
-Version: 1.1 (2023-12-09)
 Author: Alexander Hartmaier, ICAMS/Ruhr-University Bochum, December 2023
 Email: alexander.hartmaier@rub.de
-distributed under GNU General Public License (GPLv3)'''
+distributed under GNU General Public License (GPLv3)
+August 2025
+'''
 
 
 import numpy as np

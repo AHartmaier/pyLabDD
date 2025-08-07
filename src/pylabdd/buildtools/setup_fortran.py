@@ -1,12 +1,8 @@
-#from setuptools import Extension
-#from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py as _build_py
 import subprocess
 import sys
 from pathlib import Path
 
-# Dummy Extension, damit setuptools garantiert build_ext ausführt
-#dummy_extension = Extension("pylabdd.PK_force", sources=[])
 
 class BuildFortran(_build_py):
     def run(self):
@@ -59,7 +55,3 @@ class BuildFortran(_build_py):
             print("[BuildFortran] WARNING: PK_force directory not found!")
 
         super().run()
-
-# Wird von setuptools in pyproject.toml importiert
-#ext_modules = [dummy_extension]
-

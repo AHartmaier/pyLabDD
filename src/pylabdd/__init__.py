@@ -14,10 +14,12 @@ logger.setLevel(logging.INFO)
 
 try:
     from .PK_force import calc_fpk, calc_fpk_pbc
+    FORT_AVAIL = True
 except Exception as e:
     logging.warn(f'Compilation of F90 subroutine failed: {e}')
     logging.warn('Using slower Python versions.')
     from .PK_force_py import calc_fpk, calc_fpk_pbc
+    FORT_AVAIL = False
 
 __author__ = """Alexander Hartmaier"""
 __email__ = 'alexander.hartmaier@rub.de'
