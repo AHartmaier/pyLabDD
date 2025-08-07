@@ -41,16 +41,14 @@ For this installation method, the correct implementation of the package can be t
 $ pytest tests
 ```
 
-After this, the package can be used within python, e.g. be importing the entire package with
+After this, the package can be used within Python, e.g. be importing the entire package with
 
 ```python
 import pylabdd as dd
 ```
 
 ## Speedup with Fortran subroutines
-The subroutines to calculate the Peach-Koehler (PK) force on dislocations are rather time consuming. A Fortran implementation of these subroutines can bring a considerable seepdup of the simulation. To install these faster subroutines, a Fortran compiler is required, e.g. gfortran. On MacOS, this can be achived by installing the command line tools with `xcode-select --install`. The embedding of the Fortran subroutines into Python is accomplished with the leightweight Fortran wrapper [fmodpy](https://pypi.org/project/fmodpy/).
-
-During the installation process it will be automatically tried to implement the faster Fortran subroutines. On import of the pylabdd package into your Python code, you will be informed if the standard Python or the faster Fortran subroutines to calculate the PK force are being used. You will also be notifeid about any error messages during compiliation.
+The subroutines to calculate the Peach-Koehler (PK) force on dislocations are rather time consuming. The Fortran implementation of these subroutines brings a considerable seepdup of the simulations compared with the pure Python version. Typically, these faster Fortran subroutines, are automatically created during installation and the embedding into Python is accomplished with the leightweight Fortran wrapper [fmodpy](https://pypi.org/project/fmodpy/). If this process should fail, you will receive a warning and the slower Python subroutines will be used as fallback option. In that case, please report the problem directly to the author or create an issue in the GitHub repo.
 
 ## Jupyter notebooks
 
@@ -78,9 +76,9 @@ pyLabDD requires the following packages as imports:
 
 ## Version history
 
- - v1.0: Initial version (with F90 subroutine)
- - v1.1: Pure Python version (with optional F90 subroutines)
- - V1.2: Automatic compilation of F90 subroutines with fallback on Python version
+ - v 1.0: Initial version (with F90 subroutine)
+ - v 1.1: Pure Python version (with optional F90 subroutines)
+ - v 1.2: Automatic compilation of F90 subroutines with fallback to Python version
 
 ## License
 
