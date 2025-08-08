@@ -1,0 +1,32 @@
+name: pylabdd testing
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.12"]
+    name: Test pylabfea
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependecies
+      run: |
+        conda --version
+        which python
+        python -m pip install .
+
+    - name: Run tests
+      run: |
+        pytest tests
