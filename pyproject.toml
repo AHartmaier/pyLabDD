@@ -4,11 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pylabdd"
-version = "1.2.2"
+version = "1.2.3"
 description = "Python Laboratory for Dislocation Dynamics"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "GPL-3.0-only" }
+license = "GPL-3.0-only"
+license-files = [ "LICENSE" ]
 
 authors = [
   { name = "Alexander Hartmaier", email = "alexander.hartmaier@rub.de" }
