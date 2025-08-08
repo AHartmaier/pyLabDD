@@ -8,8 +8,7 @@ version = "1.2.2"
 description = "Python Laboratory for Dislocation Dynamics"
 readme = "README.md"
 requires-python = ">=3.10"
-license = "GPL-3.0-only"
-license-files = [ "LICENSE" ]
+license = { text = "GPL-3.0-only" }
 
 authors = [
   { name = "Alexander Hartmaier", email = "alexander.hartmaier@rub.de" }
