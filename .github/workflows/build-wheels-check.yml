@@ -78,6 +78,9 @@ jobs:
           find artifacts -name "*.whl" -exec cp {} dist/ \;
           find artifacts -name "*.tar.gz" -exec cp {} dist/ \;
 
+      - name: Check distribution metadata
+        run: twine check dist/*
+
       - name: Publish to TestPyPI
         env:
           TWINE_USERNAME: __token__
