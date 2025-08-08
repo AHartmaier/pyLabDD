@@ -3,7 +3,6 @@
 
 """Top-level package for pyLabDD"""
 
-import sys
 import logging
 from pathlib import Path
 from importlib.metadata import version
