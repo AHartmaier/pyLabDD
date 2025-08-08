@@ -43,6 +43,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+
+      - name: Install gfortran on macOS
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install gcc
+          echo "Installed gfortran version:"
+          gfortran --version
   
       - name: Build wheels
         run: pip wheel -w dist/ .
