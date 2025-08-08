@@ -36,6 +36,7 @@ dev = ["pytest-runner", "black", "build", "twine"]
 
 [tool.setuptools]
 include-package-data = true
+has-ext-modules = true
 package-dir = {"" = "src"}
 packages = ["pylabdd"]
 license-files = [ "LICENSE" ]
@@ -45,6 +46,3 @@ build_py = "pylabdd.buildtools.setup_fortran.BuildFortran"
 
 [tool.setuptools.package-data]
 pylabdd = ["PK_force/*", "PK_force_py/*", "buildtools/*", "*.f90"]
-
-[tool.setuptools]
-has-ext-modules = true
