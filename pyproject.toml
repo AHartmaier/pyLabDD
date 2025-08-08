@@ -45,3 +45,6 @@ build_py = "pylabdd.buildtools.setup_fortran.BuildFortran"
 
 [tool.setuptools.package-data]
 pylabdd = ["PK_force/*", "PK_force_py/*", "buildtools/*", "*.f90"]
+
+[tool.setuptools]
+has-ext-modules = true
