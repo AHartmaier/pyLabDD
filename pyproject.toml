@@ -36,7 +36,6 @@ dev = ["pytest-runner", "black", "build", "twine"]
 
 [tool.setuptools]
 include-package-data = true
-has-ext-modules = true
 package-dir = {"" = "src"}
 packages = ["pylabdd"]
 license-files = [ "LICENSE" ]
