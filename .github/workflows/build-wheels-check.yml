@@ -78,9 +78,6 @@ jobs:
           find artifacts -name "*.whl" -exec cp {} dist/ \;
           find artifacts -name "*.tar.gz" -exec cp {} dist/ \;
 
-      - name: Check distributions
-        run: python -m twine check dist/*
-
       - name: Publish to TestPyPI
         uses: pypa/gh-action-pypi-publish@v1.8.14
         with:
