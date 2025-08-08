@@ -78,9 +78,6 @@ jobs:
           find artifacts -name "*.whl" -exec cp {} dist/ \;
           find artifacts -name "*.tar.gz" -exec cp {} dist/ \;
 
-      - name: Install twine
-        run: python -m pip install twine
-
       - name: Check distributions
         run: python -m twine check dist/*
 
