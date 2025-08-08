@@ -9,6 +9,7 @@ description = "Python Laboratory for Dislocation Dynamics"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "GPL-3.0-only"
+license-files = [ "LICENSE" ]
 
 authors = [
   { name = "Alexander Hartmaier", email = "alexander.hartmaier@rub.de" }
@@ -38,7 +39,6 @@ dev = ["pytest-runner", "black", "build", "twine"]
 include-package-data = true
 package-dir = {"" = "src"}
 packages = ["pylabdd"]
-license-files = [ "LICENSE" ]
 
 [tool.setuptools.cmdclass]
 build_py = "pylabdd.buildtools.setup_fortran.BuildFortran"
