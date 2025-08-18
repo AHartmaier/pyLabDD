@@ -7,9 +7,9 @@ name = "pylabdd"
 version = "1.2.3"
 description = "Python Laboratory for Dislocation Dynamics"
 readme = "README.md"
-requires-python = ">=3.10"
 license = "GPL-3.0-only"
 license-files = [ "LICENSE" ]
+requires-python = ">=3.10"
 
 authors = [
   { name = "Alexander Hartmaier", email = "alexander.hartmaier@rub.de" }
@@ -22,7 +22,8 @@ classifiers = [
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
-  "Programming Language :: Python :: 3.13"
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Physics",
 ]
 
 dependencies = [
@@ -44,4 +45,7 @@ packages = ["pylabdd"]
 build_py = "pylabdd.buildtools.setup_fortran.BuildFortran"
 
 [tool.setuptools.package-data]
-pylabdd = ["PK_force/*", "PK_force_py/*", "buildtools/*", "*.f90"]
+"pylabdd" = ["PK_force/*", "PK_force_py/*", "buildtools/*", "*.f90"]
+
+[project.urls]
+Homepage = "https://github.com/AHartmaier/pyLabDD"
