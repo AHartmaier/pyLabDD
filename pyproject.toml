@@ -7,7 +7,7 @@ name = "pylabdd"
 version = "1.2.3"
 description = "Python Laboratory for Dislocation Dynamics"
 readme = "README.md"
-license = "GPL-3.0-only"
+license = "GPL-3.0-or-later"
 license-files = [ "LICENSE" ]
 requires-python = ">=3.10"
 
