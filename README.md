@@ -48,7 +48,7 @@ import pylabdd as dd
 ```
 
 ## Speedup with Fortran subroutines
-The subroutines to calculate the Peach-Koehler (PK) force on dislocations are rather time consuming. The Fortran implementation of these subroutines brings a considerable seepdup of the simulations compared with the pure Python version. Typically, these faster Fortran subroutines, are automatically created during installation and the embedding into Python is accomplished with the leightweight Fortran wrapper [fmodpy](https://pypi.org/project/fmodpy/). If this process should fail, you will receive a warning and the slower Python subroutines will be used as fallback option. In that case, please report the problem directly to the author or create an issue in the GitHub repo.
+The subroutines to calculate the Peach-Koehler (PK) force on dislocations are rather time consuming. The Fortran implementation of these subroutines brings a considerable seepdup of the simulations compared with the pure Python version. Typically, these faster Fortran subroutines, are automatically created during installation and the embedding into Python is accomplished with the leightweight Fortran wrapper [fmodpy](https://pypi.org/project/fmodpy/). Note that this requires a gfortran compiler to be installed in the active envornment. If the compliation of the Fortran subroutines should fail, you will receive a warning and the slower Python subroutines will be used as fallback option. In that case, please check if the gfortran compiler is available. If problems still presist, please report them directly to the author of this packges or create an issue in the GitHub repo.
 
 ## Jupyter notebooks
 
