@@ -29,12 +29,11 @@ classifiers = [
 dependencies = [
   "numpy",
   "matplotlib",
-  "pytest",
   "fmodpy"
 ]
 
 [project.optional-dependencies]
-dev = ["pytest-runner", "black", "build", "twine"]
+dev = ["pytest", "black", "build", "twine"]
 
 [tool.setuptools]
 include-package-data = true

@@ -26,6 +26,7 @@ jobs:
         conda --version
         which python
         python -m pip install .
+        python -m pip install pytest
 
     - name: Run tests
       run: |
