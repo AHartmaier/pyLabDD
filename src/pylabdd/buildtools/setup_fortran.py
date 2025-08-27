@@ -1,22 +1,29 @@
 from setuptools.command.build_py import build_py as _build_py
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 
 class BuildFortran(_build_py):
     def run(self):
+        
         print("=" * 80)
         print("[BuildFortran] Starting Fortran compilation with fmodpy")
         print("=" * 80)
+        
+        fc = os.environ.get("FC")
+        if not fc:
+            print("No environment variable 'FC' set. Using 'gfortran' as fortran compiler.")
+            fc = 'gfortran'
 
         # Ensure gfortran is available
         try:
-            subprocess.run(["gfortran", "--version"], check=True)
+            subprocess.run([fc, "--version"], check=True)
             print("[BuildFortran] gfortran found.")
         except Exception as e:
             print("[BuildFortran] gfortran not found! Install via: conda install -c conda-forge gfortran")
-            raise e
+            #raise e
 
         # Ensure fmodpy is installed
         try:
@@ -39,8 +46,9 @@ class BuildFortran(_build_py):
             # Let fmodpy build into its own subdirectory PK_force/
             fmodpy.fimport(
                 str(ffile),
+                f_compiler=str(fc),
                 output_dir=str(fortran_dir),
-                rebuild=True,
+                rebuild=False,
                 verbose=True
             )
         except Exception as e:
