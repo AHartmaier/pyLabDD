@@ -17,13 +17,19 @@ fundamental aspects of plastic deformation associated with the motion and mutual
 
 ## Installation
 
-The pyLabDD package requires an [Anaconda](https://www.anaconda.com/products/individual) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html) environment with a recent Python version. 
+The preferred method to use pyLabDD is within [Anaconda](https://www.anaconda.com) or [Miniconda](https://docs.conda.io/en/latest/miniconda.html), into which it can be easily installed from [conda-forge](https://conda-forge.org) by
 
-The pyLabDD package can be installed directly from PyPI with the following command
+```
+$ conda install pylabdd -c conda-forge
+```
+
+Generally, it can be installed within any 
+Python environment supporting the package installer for python [pip](https://pypi.org/project/pip/) from its latest [PyPi](https://pypi.org/project/pylabdd/) image via pip
 
 ```
 $ pip install pylabdd
 ```
+
 
 Alternatively, the complete repository can be cloned and installed locally. It is recommended to create a conda environment before installation. This can be done by the following the command line instructions
 
