@@ -55,6 +55,7 @@ class BuildFortran(_build_py):
                 f_compiler=str(fc),
                 f_compiler_args=cargs,
                 libraries=libpath,
+                library_extensions=['so', 'dylib', 'dll', '.5.dylib'],
                 output_dir=str(fortran_dir),
                 rebuild=False,
                 verbose=True
