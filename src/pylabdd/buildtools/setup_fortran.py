@@ -67,7 +67,7 @@ class BuildFortran(_build_py):
             # Try to wrap gfortran to call it with libraries
             import shutil, tempfile, stat
 
-            prefix = os.environ.get("BUILD_PREFIX")
+            prefix = os.environ.get("PREFIX")
             real_fc = str(fc)
             
             wrap_dir = tempfile.mkdtemp(prefix="fcwrap_")
