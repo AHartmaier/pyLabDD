@@ -41,18 +41,20 @@ class BuildFortran(_build_py):
             raise FileNotFoundError(f"[BuildFortran] Fortran source not found: {ffile}")
 
         print(f"[BuildFortran] Compiling {ffile}")
-        fflags  = os.environ.get("FFLAGS", "").split()
-        print(f"[BuildFortran] Using FFLAGS: {fflags}, {type(fflags)}")
-        ldlibs  = os.environ.get("LDFLAGS", "").split()
-        print(f"[BuildFortran] Libraries: {ldlibs}, {type(ldlibs)}")
-        fcomp = str(fc) + " " + " ".join(ldlibs)
+        fflags = os.environ.get("FFLAGS", "").split()
+        print(f"[BuildFortran] Using FFLAGS: {fflags}")
+        ldlibs = os.environ.get("LDFLAGS", "").split()
+        print(f"[BuildFortran] Libraries: {ldlibs}")
+        libpath = os.environ.get("LIBRARY_PATH", "").split()
+        print(f"[BuildFortran] Library Path: {libpath}")
+        cargs = fflags + ldlibs
         try:
             # Let fmodpy build into its own subdirectory PK_force/
             fmodpy.fimport(
                 str(ffile),
-                f_compiler=fcomp,
-                f_compiler_args=fflags,
-                libraries=ldlibs,
+                f_compiler=str(fc),
+                f_compiler_args=cargs,
+                libraries=libpath,
                 output_dir=str(fortran_dir),
                 rebuild=False,
                 verbose=True
