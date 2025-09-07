@@ -43,7 +43,7 @@ class BuildFortran(_build_py):
         print(f"[BuildFortran] Compiling {ffile}")
         fflags  = os.environ.get("FFLAGS", "").split()
         print(f"[BuildFortran] Using FFLAGS: {fflags}, {type(fflags)}")
-        ldlibs  = os.environ.get("LDFLAGS_LD", "").split()
+        ldlibs  = os.environ.get("LDFLAGS", "").split()
         print(f"[BuildFortran] Libraries: {ldlibs}, {type(ldlibs)}")
         try:
             # Let fmodpy build into its own subdirectory PK_force/
