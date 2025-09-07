@@ -37,6 +37,7 @@ class BuildFortran(_build_py):
         # Path to Fortran source
         fortran_dir = Path(__file__).parent.parent  # point to src/pylabdd
         ffile = fortran_dir / "PK_force.f90"
+        lib_ext = ['so', 'dylib', 'dll', '.5.dylib', '.a']
         if not ffile.exists():
             raise FileNotFoundError(f"[BuildFortran] Fortran source not found: {ffile}")
 
@@ -55,7 +56,7 @@ class BuildFortran(_build_py):
                 f_compiler=str(fc),
                 f_compiler_args=cargs,
                 libraries=libpath,
-                library_extensions=['so', 'dylib', 'dll', '.5.dylib'],
+                library_extensions=lib_ext,
                 output_dir=str(fortran_dir),
                 rebuild=False,
                 verbose=True
@@ -89,7 +90,7 @@ class BuildFortran(_build_py):
                 f_compiler=wrapper,
                 f_compiler_args=fflags,
                 libraries=libpath,
-                library_extensions=['so', 'dylib', 'dll', '.5.dylib'],
+                library_extensions=lib_ext,
                 output_dir=str(fortran_dir),
                 rebuild=False,
                 verbose=True
