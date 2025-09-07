@@ -66,7 +66,7 @@ class BuildFortran(_build_py):
             # Try to wrap gfortran to call it with libraries
             import shutil, tempfile, stat
 
-            prefix = os.environ.get("PREFIX") or os.environ.get("CONDA_PREFIX")
+            prefix = os.environ.get("BUILD_PREFIX")
             real_fc = str(fc)
             
             wrap_dir = tempfile.mkdtemp(prefix="fcwrap_")
@@ -79,6 +79,11 @@ class BuildFortran(_build_py):
             with open(wrapper, "w") as f:
                 f.write(script)
             os.chmod(wrapper, os.stat(wrapper).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            print(script)
+            print("FC =", os.environ.get("FC"))
+            print("LIBRARY_PATH =", os.environ.get("LIBRARY_PATH",""))
+            print("LDFLAGS =", os.environ.get("LDFLAGS",""))
+            print("Expect libgfortran here:", os.path.join(prefix, "lib"))
             fmodpy.fimport(
                 str(ffile),
                 f_compiler=wrapper,
