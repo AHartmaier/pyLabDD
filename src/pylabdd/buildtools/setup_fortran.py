@@ -62,7 +62,33 @@ class BuildFortran(_build_py):
             )
         except Exception as e:
             print("[BuildFortran] Fortran compilation failed!")
-            raise e
+            print(e)
+            # Try to wrap gfortran to call it with libraries
+            import shutil, tempfile, stat
+
+            prefix = os.environ.get("PREFIX") or os.environ.get("CONDA_PREFIX")
+            real_fc = str(fc)
+            
+            wrap_dir = tempfile.mkdtemp(prefix="fcwrap_")
+            wrapper  = os.path.join(wrap_dir, "gfortran")
+            
+            script = f"""#!/usr/bin/env bash
+            # Forward to the real gfortran, appending conda-forge paths.
+            exec "{real_fc}" "$@" -L"{prefix}/lib" -Wl,-rpath,"{prefix}/lib"
+            """
+            with open(wrapper, "w") as f:
+                f.write(script)
+            os.chmod(wrapper, os.stat(wrapper).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            fmodpy.fimport(
+                str(ffile),
+                f_compiler=wrapper,
+                f_compiler_args=fflags,
+                libraries=libpath,
+                library_extensions=['so', 'dylib', 'dll', '.5.dylib'],
+                output_dir=str(fortran_dir),
+                rebuild=False,
+                verbose=True
+            )
 
         # Check if PK_force folder exists
         pk_dir = fortran_dir / "PK_force"
