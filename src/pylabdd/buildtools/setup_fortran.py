@@ -51,7 +51,7 @@ class BuildFortran(_build_py):
             fmodpy.fimport(
                 str(ffile),
                 f_compiler=str(fc),
-                f_compiler_args=fflags,
+                f_compiler_args=cargs,
                 libraries=ldlibs,
                 output_dir=str(fortran_dir),
                 rebuild=False,
