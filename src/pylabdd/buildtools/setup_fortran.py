@@ -45,13 +45,13 @@ class BuildFortran(_build_py):
         print(f"[BuildFortran] Using FFLAGS: {fflags}, {type(fflags)}")
         ldlibs  = os.environ.get("LDFLAGS", "").split()
         print(f"[BuildFortran] Libraries: {ldlibs}, {type(ldlibs)}")
-        cargs = fflags + ldlibs
+        fcomp = str(fc) + " " + " ".join(ldlibs)
         try:
             # Let fmodpy build into its own subdirectory PK_force/
             fmodpy.fimport(
                 str(ffile),
-                f_compiler=str(fc),
-                f_compiler_args=cargs,
+                f_compiler=fcomp,
+                f_compiler_args=fflags,
                 libraries=ldlibs,
                 output_dir=str(fortran_dir),
                 rebuild=False,
