@@ -55,40 +55,25 @@ class BuildFortran(_build_py):
             wrapper = os.path.join(wrap_dir, "gfortran")
             
             script = f"""#!/usr/bin/env bash
-            # If building the fmodpy size-probe, compile/link with BUILD (x86_64) compiler so it can run.
-            #for i in "$@"; do
-            #  if [[ "$i" == *"fmodpy_get_size"* ]]; then
+            # Build libraries for build and host archs
             exec "{x86_fc}" "$@" -L"{BUILD_PREFIX}/lib" -Wl,-rpath,"{BUILD_PREFIX}/lib"
-            #  fi
-            #done
-            # Otherwise, use the ARM compiler and link against HOST libs.
             exec "{arm_fc}" "$@" -L"{PREFIX}/lib" -Wl,-rpath,"{PREFIX}/lib"
             """
             with open(wrapper, "w") as f:
                 f.write(script)
             os.chmod(wrapper, os.stat(wrapper).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-            
-            #os.environ["FC"] = wrapper
-            #os.environ.setdefault("MACOSX_DEPLOYMENT_TARGET", "11.0")
 
             print("[BuildFortran-CrossCompiling] Script:")
             print(script)
             print(f"[BuildFortran-CrossCompiling] arm_gfortran: {arm_fc}")
             print(f"[BuildFortran-CrossCompiling] x86_gfortran: {x86_fc}")
             fc = str(wrapper)
-            cargs = []  # f"-I{plib}", f"-L{plib}", f"-Wl,-rpath,{plib}"]
-            print(f"[BuildFortran-CrossCompiling] ARM64 cargs: {cargs}")
-        else:
-            fc = str(fc)
-            cargs = []
             
         try:
             # Let fmodpy build into its own subdirectory PK_force/
             fmodpy.fimport(
                 str(ffile),
                 f_compiler=fc,
-                #f_compiler_args=cargs,
-                #libraries=libpath,
                 output_dir=str(fortran_dir),
                 rebuild=False,
                 verbose=True
