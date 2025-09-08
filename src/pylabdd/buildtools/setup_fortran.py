@@ -37,7 +37,7 @@ class BuildFortran(_build_py):
         # Path to Fortran source
         fortran_dir = Path(__file__).parent.parent  # point to src/pylabdd
         ffile = fortran_dir / "PK_force.f90"
-        lib_ext = ['so', 'dylib', 'dll', '.5.dylib', '.a']
+        lib_ext = ['so', 'dylib', 'dll']  # , '.5.dylib', '.a']
         if not ffile.exists():
             raise FileNotFoundError(f"[BuildFortran] Fortran source not found: {ffile}")
 
@@ -48,7 +48,18 @@ class BuildFortran(_build_py):
         print(f"[BuildFortran] Libraries: {ldlibs}")
         libpath = os.environ.get("LIBRARY_PATH", "").split()
         print(f"[BuildFortran] Library Path: {libpath}")
-        cargs = fflags + ldlibs
+        # cargs = fflags + ldlibs
+        prefix = os.environ.get("PREFIX")
+        if prefix and "arm64" in fc:
+            # cross-build on conda-forge for osx_arm64
+            plib = libpath[0][:-1]
+            assert plib[:-4] == prefix
+            libgfort = plib + "libgfortran.dylib"
+            cargs = [f"-I{libgfort}", f"-L{plib}", f"-Wl,-rpath,{plib}"]
+            print(f"[BuildFortran] ARM64 cargs: {cargs}")
+        else:
+            cargs = []
+            
         try:
             # Let fmodpy build into its own subdirectory PK_force/
             fmodpy.fimport(
@@ -67,7 +78,7 @@ class BuildFortran(_build_py):
             # Try to wrap gfortran to call it with libraries
             import shutil, tempfile, stat
 
-            prefix = os.environ.get("PREFIX")
+           
             real_fc = str(fc)
             
             wrap_dir = tempfile.mkdtemp(prefix="fcwrap_")
@@ -75,7 +86,7 @@ class BuildFortran(_build_py):
             
             script = f"""#!/usr/bin/env bash
             # Forward to the real gfortran, appending conda-forge paths.
-            exec "{real_fc}" "$@" -L"{prefix}/lib" -Wl,-rpath,"{prefix}/lib"
+            exec "{real_fc}" "$@" -I"{prefix}/lib/libgfortran.dylib" -L"{prefix}/lib" -Wl,-rpath,"{prefix}/lib"
             """
             with open(wrapper, "w") as f:
                 f.write(script)
