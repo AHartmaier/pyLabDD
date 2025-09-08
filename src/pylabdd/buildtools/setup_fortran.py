@@ -84,10 +84,8 @@ class BuildFortran(_build_py):
             wrapper  = os.path.join(wrap_dir, "gfortran")
             ldstr = " ".join(cargs)
             
-            script = f"""#!/usr/bin/env bash
             # Forward to the real gfortran, appending conda-forge paths.
-            exec "{real_fc}" "$@" "{ldstr}"
-            """
+            script = f'#!/usr/bin/env bash\n exec {real_fc} $@ {ldstr}'
             with open(wrapper, "w") as f:
                 f.write(script)
             os.chmod(wrapper, os.stat(wrapper).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -99,7 +97,7 @@ class BuildFortran(_build_py):
             fmodpy.fimport(
                 str(ffile),
                 f_compiler=wrapper,
-                f_compiler_args=fflags,
+                f_compiler_args=[],
                 libraries=libpath,
                 library_extensions=lib_ext,
                 output_dir=str(fortran_dir),
