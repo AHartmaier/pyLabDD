@@ -56,11 +56,11 @@ class BuildFortran(_build_py):
             
             script = f"""#!/usr/bin/env bash
             # If building the fmodpy size-probe, compile/link with BUILD (x86_64) compiler so it can run.
-            for i in "$@"; do
-              if [[ "$i" == *"fmodpy_get_size"* ]]; then
-                exec "{x86_fc}" "$@" -L"{BUILD_PREFIX}/lib" -Wl,-rpath,"{BUILD_PREFIX}/lib"
-              fi
-            done
+            #for i in "$@"; do
+            #  if [[ "$i" == *"fmodpy_get_size"* ]]; then
+            exec "{x86_fc}" "$@" -L"{BUILD_PREFIX}/lib" -Wl,-rpath,"{BUILD_PREFIX}/lib"
+            #  fi
+            #done
             # Otherwise, use the ARM compiler and link against HOST libs.
             exec "{arm_fc}" "$@" -L"{PREFIX}/lib" -Wl,-rpath,"{PREFIX}/lib"
             """
