@@ -82,10 +82,11 @@ class BuildFortran(_build_py):
             
             wrap_dir = tempfile.mkdtemp(prefix="fcwrap_")
             wrapper  = os.path.join(wrap_dir, "gfortran")
+            ldstr = " ".join(ldlibs)
             
             script = f"""#!/usr/bin/env bash
             # Forward to the real gfortran, appending conda-forge paths.
-            exec "{real_fc}" "$@" "{ldlibs}" -I"{prefix}/lib"
+            exec "{real_fc}" "$@" "{ldstr}" -I"{prefix}/lib"
             """
             with open(wrapper, "w") as f:
                 f.write(script)
