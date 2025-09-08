@@ -54,8 +54,7 @@ class BuildFortran(_build_py):
             # cross-build on conda-forge for osx_arm64
             plib = libpath[0][:-1]
             assert plib[:-4] == prefix
-            libgfort = plib + "libgfortran.dylib"
-            cargs = [f"-I{libgfort}", f"-L{plib}", f"-Wl,-rpath,{plib}"]
+            cargs = [f"-I{plib}", f"-L{plib}", f"-Wl,-rpath,{plib}"]
             print(f"[BuildFortran] ARM64 cargs: {cargs}")
         else:
             cargs = []
@@ -86,7 +85,7 @@ class BuildFortran(_build_py):
             
             script = f"""#!/usr/bin/env bash
             # Forward to the real gfortran, appending conda-forge paths.
-            exec "{real_fc}" "$@" -I"{prefix}/lib/libgfortran.dylib" -L"{prefix}/lib" -Wl,-rpath,"{prefix}/lib"
+            exec "{real_fc}" "$@" "{ldlibs}" -I"{prefix}/lib"
             """
             with open(wrapper, "w") as f:
                 f.write(script)
