@@ -39,6 +39,7 @@ class BuildFortran(_build_py):
         ffile = fortran_dir / "PK_force.f90"
         if not ffile.exists():
             raise FileNotFoundError(f"[BuildFortran] Fortran source not found: {ffile}")
+        print(f"[BuildFortran] Compiling {ffile}")
             
         if os.environ.get("CONDA_BUILD_CROSS_COMPILATION") == "1":
             # cross-compilation for osx_arm64 build on conda-forge is active
