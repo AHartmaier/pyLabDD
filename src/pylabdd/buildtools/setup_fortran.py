@@ -40,11 +40,12 @@ class BuildFortran(_build_py):
         if not ffile.exists():
             raise FileNotFoundError(f"[BuildFortran] Fortran source not found: {ffile}")
         print(f"[BuildFortran] Compiling {ffile}")
-            
-        if os.environ.get("CONDA_BUILD_CROSS_COMPILATION") == "1":
+        
+        cross = os.environ.get("CONDA_BUILD_CROSS_COMPILATION") == "1"
+        if cross:
             # cross-compilation for osx_arm64 build on conda-forge is active
             # patch fmodpy to run test on build-env and build code for host-env
-            import tempfile, stat
+            import tempfile, stat, subprocess, shlex
 
             PREFIX = os.environ["PREFIX"]
             BUILD_PREFIX = os.environ["BUILD_PREFIX"]
@@ -57,7 +58,6 @@ class BuildFortran(_build_py):
             script = f"""#!/usr/bin/env bash
             # Build libraries for build and host archs
             exec "{x86_fc}" "$@" -L"{BUILD_PREFIX}/lib" -Wl,-rpath,"{BUILD_PREFIX}/lib"
-            exec "{arm_fc}" "$@" -L"{PREFIX}/lib" -Wl,-rpath,"{PREFIX}/lib"
             """
             with open(wrapper, "w") as f:
                 f.write(script)
@@ -82,6 +82,10 @@ class BuildFortran(_build_py):
             print("[BuildFortran] Fortran compilation failed!")
             raise e
 
+        if cross:
+            # create arm_64 library to be shipped with package
+            cmd = f"{fc} PK_force.f90 PK_force_c_wrapper.f90 -fPIC -shared -O3 -L{PREFIX}/lib -Wl,-rpath,{PREFIX}/lib -o PK_force.arm64.so"
+            subprocess.run(shlex.split(cmd), check=True, cwd=os.path.join(fortran_dir, "PK_force"))
         # Check if PK_force folder exists
         pk_dir = fortran_dir / "PK_force"
         if pk_dir.exists():
