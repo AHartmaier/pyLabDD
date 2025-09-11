@@ -84,8 +84,10 @@ class BuildFortran(_build_py):
 
         if cross:
             # create arm_64 library to be shipped with package
-            cmd = f"{fc} PK_force.f90 PK_force_c_wrapper.f90 -fPIC -shared -O3 -L{PREFIX}/lib -Wl,-rpath,{PREFIX}/lib -o PK_force.arm64.so"
-            subprocess.run(shlex.split(cmd), check=True, cwd=os.path.join(fortran_dir, "PK_force"))
+            lib_path = os.path.join(fortran_dir, "PK_force")
+            lib_name = os.path.join(lib_path, "PK_force.2.arm64.so")
+            cmd = f"{fc} PK_force.f90 PK_force_c_wrapper.f90 -fPIC -shared -O3 -L{PREFIX}/lib -Wl,-rpath,{PREFIX}/lib -o {lib_name}"
+            subprocess.run(shlex.split(cmd), check=True, cwd=lib_path)
         # Check if PK_force folder exists
         pk_dir = fortran_dir / "PK_force"
         if pk_dir.exists():
