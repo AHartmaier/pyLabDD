@@ -45,7 +45,7 @@ class BuildFortran(_build_py):
         if cross:
             # cross-compilation for osx_arm64 build on conda-forge is active
             # patch fmodpy to run test on build-env and build code for host-env
-            import tempfile, stat, subprocess, shlex
+            import tempfile, stat, subprocess
 
             PREFIX = os.environ["PREFIX"]
             BUILD_PREFIX = os.environ["BUILD_PREFIX"]
@@ -86,8 +86,11 @@ class BuildFortran(_build_py):
             # create arm_64 library to be shipped with package
             lib_path = os.path.join(fortran_dir, "PK_force")
             lib_name = os.path.join(lib_path, "PK_force.2.arm64.so")
-            cmd = f"{fc} PK_force.f90 PK_force_c_wrapper.f90 -fPIC -shared -O3 -L{PREFIX}/lib -Wl,-rpath,{PREFIX}/lib -o {lib_name}"
-            subprocess.run(shlex.split(cmd), check=True, cwd=lib_path)
+            fflags  = os.environ.get("FFLAGS", "").split()
+            ldflags = os.environ.get("LDFLAGS", "").split()
+            #cmd = f"{arm_fc} PK_force.f90 PK_force_c_wrapper.f90 -fPIC -shared -O3 -L{PREFIX}/lib -Wl,-rpath,{PREFIX}/lib -o {lib_name}"
+            cmd = [arm_fc, "PK_force.f90", "PK_force_c_wrapper.f90"] + fflags + ["-shared", "-O3", "-o", lib_name] + ldflags
+            subprocess.run(cmd, check=True, cwd=lib_path)
         # Check if PK_force folder exists
         pk_dir = fortran_dir / "PK_force"
         if pk_dir.exists():
