@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pylabdd"
-version = "1.2.5"
+version = "1.2.6"
 description = "Python Laboratory for Dislocation Dynamics"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -38,13 +38,16 @@ dev = ["pytest", "black", "build", "twine"]
 [tool.setuptools]
 include-package-data = true
 package-dir = {"" = "src"}
-packages = ["pylabdd"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["pylabdd*"]
 
 [tool.setuptools.cmdclass]
 build_py = "pylabdd.buildtools.setup_fortran.BuildFortran"
 
 [tool.setuptools.package-data]
-"pylabdd" = ["PK_force/*", "PK_force_py/*", "buildtools/*", "*.f90"]
+"pylabdd" = ["PK_force/*", "PK_force_py/*", "gbdd/*", "gbdd_py/*", "buildtools/*", "*.f90"]
 
 [project.urls]
 Homepage = "https://github.com/AHartmaier/pyLabDD"
