@@ -262,7 +262,7 @@ class GB_dislocations:
                     marker="none",
                     linestyle="-",
                     color=plt.cm.viridis(i / max(1, nout)),
-                    label=f"{field} t={ts[i]:.2f}s",
+                    label=f"t={ts[i]:.2f}s",
                 )
             plt.legend()
             plt.ylabel(field)
