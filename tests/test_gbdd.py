@@ -47,7 +47,7 @@ def test_normalize_names_sequence():
     assert GB_dislocations._normalize_names(["a", "b"], ["a", "b"]) == ["a", "b"]
 
 def fake_calc_gbdd(
-    tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, niter, dtmax,
+    param, nparam, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, niter, dtmax,
     time_out, xout, vout, pu_out, globout, screenout
 ):
     nout = 3

@@ -12,31 +12,41 @@
 ! Copyright (c) 2013-2026 by the Author. All rights reserved.
 ! This code can be used under the terms of the GNU General Public License version 3 (GNU GPL-3.0)
 
-subroutine calc_gbdd(tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, niter, dtmax, &
+subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, niter, dtmax, &
     it, Npu_max, ih5, time_out, xout, vout, pu_out, globout, screen_out)
 
     implicit none
 
     integer, parameter :: name_len = 16
     integer, parameter :: nsav = 200
-    logical, intent(in) :: screen_out  ! print output on screen
+    integer, parameter :: IDX_MU     = 1
+    integer, parameter :: IDX_NU     = 2
+    integer, parameter :: IDX_B      = 3
+    integer, parameter :: IDX_DELTA  = 4
+    integer, parameter :: IDX_QACT   = 5
+    integer, parameter :: IDX_DRAG   = 6
+    integer, parameter :: IDX_DIFGB  = 7
+    integer, parameter :: N_GBDD_PARAMS = 7
 
-    integer, intent(in) :: Ngbn      ! number of gain boundary nodes, should be odd to have a center node
-    integer, intent(in) :: niter ! maximum number of iteration steps
-    integer, intent(in) :: maxdis ! maximum number of dislocations in pile-up
+    logical, intent(in) :: screen_out  ! print output on screen
+    integer, intent(in) :: nparams  ! number of constitutive parameters
+    integer, intent(in) :: Ngbn    ! number of gain boundary nodes, should be odd to have a center node
+    integer, intent(in) :: niter   ! maximum number of iteration steps
+    integer, intent(in) :: maxdis  ! maximum number of dislocations in pile-up
     integer, intent(out) :: Npu_max ! maximum number of dislocation in pile-up reached
     integer, intent(out) :: it !number of iterations
     integer, intent(out) :: ih5  ! number of outputs
+    real(8), intent(in) :: params(nparams)  ! Vector for constitutive parameters
     real(8), intent(in) :: tfin  ! final sim_time for simulation (microseconds), std: 25d6
-    real(8), intent(in) :: dtmax   ! 1.d3 w/o pu; 60 with pile up
+    real(8), intent(in) :: dtmax ! 1.d3 w/o pu; 60 with pile up
     real(8), intent(in) :: D2    ! Grain size D/2, distance FR source-GB (micron)
-    real(8), intent(in) :: Dgp     ! Length of GB segment considered (micron); size 0.005
+    real(8), intent(in) :: Dgp   ! Length of GB segment considered (micron); size 0.005
     real(8), intent(in) :: tau0  ! applied shear stress (MPa) 
     real(8), intent(in) :: temp  ! temperature
     real(8), intent(out) :: vout(:, :, :), time_out(:), xout(:)
     real(8), intent(out) :: pu_out(:, :, :), globout(:, :)
     real(8) :: bfield(Ngbn), ypu(maxdis), fdis(maxdis), vdis(maxdis)
-    real(8) :: M, C, DC, B, mu, nu, Omega, pi, gbdx
+    real(8) :: M, C, DC, B, mu, nu, Omega, pi, gbdx, drag
     real(8) :: R, delta, Dif_gb, D0, Qact
     real(8) :: twr0  ! sim_time interval (microseconds) for sim_time series output, std: 20d6
     real(8) :: frk(maxdis), yrk(maxdis), Jf(Ngbn), bdot(Ngbn)
@@ -57,6 +67,12 @@ subroutine calc_gbdd(tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, niter, dtmax, &
     nfields = size(vout, 2)
     nglob = size(globout, 2)
 
+    if (nparams < N_GBDD_PARAMS) then
+        error stop "GBDD parameter vector is too short."
+    end if
+    if (nparams > N_GBDD_PARAMS) then
+        error stop "GBDD parameter vector is too long."
+    end if
     call init()
     print*, "START", temp, Ngbn, Dgp
 
@@ -428,20 +444,20 @@ contains
         ypu = 0.d0
         bfield = 0.d0
 
-        ! material parameters 
+        ! material parameters
+        mu    = params(IDX_MU)  !mu = 44.d3 ! (MPa)
+        nu    = params(IDX_NU)  !nu = 0.3
+        B     = params(IDX_B)   !B = 0.25d-3 !bulk Burgers vector norm (micron)
+        delta = params(IDX_DELTA)  !delta = 5.d-4 ! GB thickness (micron)
+        Qact  = params(IDX_QACT)  !Qact = 57.d3 ! activation energy for GB diffusion (J/mol)
+        drag  = params(IDX_DRAG)  ! 500.d0
+        Dif_gb = params(IDX_DIFGB)  !Dif_gb = 1.d1 ! GB diffusion coeff (micron^2/micro s)
         pi = 4.d0*datan(1.d0)
-        mu = 44.d3 ! (MPa)
-        nu = 0.3
         C = mu/(2*pi*(1-nu)) ! is A in paper
-        B = 0.25d-3 !bulk Burgers vector norm (micron)
-        M = B/500.d0 ! dislocation mobility B/(microsecond.MPa)
+        M = B/drag ! dislocation mobility B/(microsecond.MPa)
         R = 8.31446d0 ! gas constant (J/molK)
-        delta = 5.d-4 ! GB thickness (micron)
-        Dif_gb = 1.d1 ! GB diffusion coeff (micron^2/micro s)
-        Qact = 57.d3 ! activation energy for GB diffusion (J/mol)
         D0 = Dif_gb*exp(-Qact/(R*temp)) ! GB diffusion coefficient
         Omega = B*B !atomic volume
-
 
         ! set numerical parameters
         twr0 = 0.001 *tfin / maxout ! std: 20d6
@@ -498,7 +514,7 @@ contains
                 hh = hh + bfield(i)*sqrt(hsc)*(hfr*log(sqrt(hr2)/D2) + hy/hr2)
             end do 
             fdis(j) = C*B*hh - tau0 
-        end do 
+        end do
+    end subroutine tau_GB
 
-    end subroutine tau_GB 
 end subroutine calc_gbdd

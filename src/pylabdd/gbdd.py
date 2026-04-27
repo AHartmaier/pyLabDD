@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from numpy.typing import ArrayLike, NDArray
 from typing import Any, TypeAlias
-
+from pathlib import Path
+import h5py
 import numpy as np
 from matplotlib import pyplot as plt
-from numpy.typing import NDArray
 
 FloatArray: TypeAlias = NDArray[np.float64]
 NameOrNames: TypeAlias = str | Sequence[str] | None
@@ -36,7 +37,7 @@ class GB_dislocations:
         from pylabdd.mod_gbdd import calc_gbdd
 
         self.calc_gbdd: Callable[..., tuple[Any, ...]] = calc_gbdd
-
+        # model parameters
         self.tau0: float = float(tau0)
         self.temp: float = float(temp)
         self.Dgp: float = float(len_gb_seg)
@@ -48,6 +49,14 @@ class GB_dislocations:
         self.tfin: float = float(tfin)
         self.dtmax: float = float(dtmax)
         self.screenout: bool = bool(screenout)
+        #constitutive parameters
+        self.mu: float = 44.e3  # shear modulus (MPa)
+        self.nu: float = 0.3  # Poisson ration
+        self.B: float = 0.25e-3  # bulk Burgers vector norm (micron)
+        self.delta: float = 5.e-4  # GB thickness (micron)
+        self.Qact: float = 57.e3  # activation energy for GB diffusion (J/mol)
+        self.drag: float = 500.  # dislocation drag coefficient; mobility = B / drag
+        self.Dif_gb: float = 10.  # GB diffusion coeff (micron^2/micro s)
 
         if self.Ngbn <= 0:
             raise ValueError("Ngbn must be positive.")
@@ -81,6 +90,16 @@ class GB_dislocations:
             "n_absorbed",
             "n_gbdis_eff",
         ]
+        self.GBDD_PARAM_KEYS = (
+            "mu",
+            "nu",
+            "B",
+            "delta",
+            "Qact",
+            "drag",
+            "Dif_gb",
+        )
+
         self.dis_names: list[str] = ["position", "force", "velocity"]
 
         self.nfield: int = len(self.field_names)
@@ -88,6 +107,11 @@ class GB_dislocations:
         self.npuval: int = len(self.dis_names)
 
         # Results are initialized by run_sim().
+        self.time_out = None
+        self.xout = None
+        self.vout = None
+        self.pu_out = None
+        self.globout = None
         self.field_data: dict[str, FloatArray] | None = None
         self.glob_data: dict[str, FloatArray] | None = None
         self.pu_dis: dict[str, FloatArray] | None = None
@@ -99,19 +123,24 @@ class GB_dislocations:
 
     def run_sim(self) -> None:
         """Run the Fortran GB-dislocation simulation and store the results."""
-        time_out: FloatArray = np.zeros(self.maxout, dtype=np.float64, order="F")
-        xout: FloatArray = np.zeros(self.Ngbn, dtype=np.float64, order="F")
-        vout: FloatArray = np.zeros(
+        self.time_out: FloatArray = np.zeros(self.maxout, dtype=np.float64, order="F")
+        self.xout: FloatArray = np.zeros(self.Ngbn, dtype=np.float64, order="F")
+        self.vout: FloatArray = np.zeros(
             (self.maxout, self.nfield, self.Ngbn), dtype=np.float64, order="F"
         )
-        pu_out: FloatArray = np.zeros(
+        self.pu_out: FloatArray = np.zeros(
             (self.maxout, self.npuval, self.maxdis), dtype=np.float64, order="F"
         )
-        globout: FloatArray = np.zeros(
+        self.globout: FloatArray = np.zeros(
             (self.maxout, self.nglob), dtype=np.float64, order="F"
         )
 
+        pv = self._parameter_vector()
+        npv = len(pv)
+
         it_done, npu_max, nout, time_out, xout, vout, pu_out, globout = self.calc_gbdd(
+            pv,
+            npv,
             self.tau0,
             self.temp,
             self.Dgp,
@@ -121,11 +150,11 @@ class GB_dislocations:
             self.tfin,
             self.niter,
             self.dtmax,
-            time_out,
-            xout,
-            vout,
-            pu_out,
-            globout,
+            self.time_out,
+            self.xout,
+            self.vout,
+            self.pu_out,
+            self.globout,
             self.screenout,
         )
 
@@ -181,16 +210,6 @@ class GB_dislocations:
             self.nout,
             self.npu_max,
         )
-
-    @staticmethod
-    def _normalize_names(names: NameOrNames, valid_names: Sequence[str]) -> list[str]:
-        if names is None:
-            return []
-        if isinstance(names, str):
-            if names.lower() in {"all", "a"}:
-                return list(valid_names)
-            return [names]
-        return list(names)
 
     def plot_time_series(self, names: NameOrNames = None, semi_log: bool = False) -> None:
         """Plot sim_time series of selected global values."""
@@ -298,3 +317,245 @@ class GB_dislocations:
         plt.ylabel("sim_time (s)")
         plt.xlim((0.0, self.D2 * 1.05))
         plt.show()
+
+    def save_hdf5(
+            self,
+            filename: str | Path,
+            *,
+            nout: int | None = None,
+            overwrite: bool = True,
+    ) -> Path:
+        """
+        Save GBDD simulation results to HDF5.
+
+        Assumes the following arrays exist on self:
+            self.time_out,
+            self.xout,
+            self.vout,
+            self.pu_out,
+            self.globout,
+
+        and simulation/material parameters are stored on self.
+        """
+
+        path = Path(filename)
+        mode = "w" if overwrite else "x"
+
+        time_out = np.asarray(self.time_out, dtype=np.float64)
+        xout = np.asarray(self.xout, dtype=np.float64)
+        vout = np.asarray(self.vout, dtype=np.float64)
+        pu_out = np.asarray(self.pu_out, dtype=np.float64)
+        globout = np.asarray(self.globout, dtype=np.float64)
+
+        if vout.ndim != 3:
+            raise ValueError(f"self.vout must have shape (nt, nfields, Ngbn), got {vout.shape}")
+        if pu_out.ndim != 3:
+            raise ValueError(f"self.pu_out must have shape (nt, 3, maxdis), got {pu_out.shape}")
+        if globout.ndim != 2:
+            raise ValueError(f"self.globout must have shape (nt, nglob), got {globout.shape}")
+
+        nt = vout.shape[0]
+
+        if nout is None:
+            nout = self.nout
+        if nout is None or nout <= 0:
+            nonzero = np.flatnonzero(time_out)
+            nout = int(nonzero[-1] + 1) if nonzero.size else 1
+        if nout < 1 or nout > nt:
+            raise ValueError(f"nout must be between 1 and {nt}, got {nout}")
+
+        time_out = time_out[:nout]
+        vout = vout[:nout, :, :]
+        pu_out = pu_out[:nout, :, :]
+        globout = globout[:nout, :]
+
+        metadata = {
+            "title": "GB dislocation dynamics",
+            "version": "2.2.0",
+            "author": "Alexander Hartmaier",
+            "institution": "Ruhr-Universitaet Bochum, ICAMS",
+            "copyright": "Copyright (c) 2013-2026 by the Author. All rights reserved.",
+            "license": "GNU General Public License version 3 (GNU GPL-3.0)",
+        }
+
+        material = {
+            "shear_modulus": self.mu,
+            "poisson_ratio": self.nu,
+            "temperature": self.temp,
+            "dislocation_drag": self.drag,
+            "grain_size": self.D2,
+            "length_grain_boundary": self.Dgp,
+            "burgers_vector_norm_B_micron": self.B,
+            "gb_cell_size": self.Dgp / (self.Ngbn - 1),
+            "gb_thickness": self.delta,
+            "activation_energy": self.Qact,
+        }
+
+        simulation = {
+            "tau0": self.tau0,
+            "tfin": self.tfin,
+            "dtmax": self.dtmax,
+            "niter": self.niter,
+            "it": self.it_done,
+            "nout": nout,
+            "Ngbn": self.Ngbn,
+            "maxdis": self.maxdis,
+            "Npu_max": self.npu_max,
+            "center_node": int((self.Ngbn + 1) / 2),
+            "nfields": vout.shape[1],
+            "nglob": globout.shape[1],
+            "maxout": nt,
+        }
+
+        with h5py.File(path, mode) as h5:
+            h5.attrs["format"] = np.bytes_("pyLabDD GBDD result")
+            h5.attrs["format_version"] = np.bytes_("1.0")
+
+            meta_group = h5.create_group("metadata")
+            self._write_attrs(meta_group, metadata)
+
+            material_group = h5.create_group("material")
+            self._write_attrs(material_group, material)
+
+            simulation_group = h5.create_group("simulation")
+            self._write_attrs(simulation_group, simulation)
+
+            h5.create_dataset("time", data=time_out, compression="gzip")
+            h5.create_dataset("x", data=xout, compression="gzip")
+
+            gb_group = h5.create_group("gb")
+            gb_group.attrs["field_names"] = np.asarray(self.field_names, dtype="S")
+            gb_group.create_dataset("fields", data=vout, compression="gzip")
+
+            for i, name in enumerate(self.field_names):
+                if i < vout.shape[1]:
+                    gb_group.create_dataset(name, data=vout[:, i, :], compression="gzip")
+
+            pileup_group = h5.create_group("pileup")
+            pileup_group.attrs["field_names"] = np.asarray(self.dis_names, dtype="S")
+            pileup_group.create_dataset("fields", data=pu_out, compression="gzip")
+
+            for i, name in enumerate(self.dis_names):
+                if i < pu_out.shape[1]:
+                    pileup_group.create_dataset(name, data=pu_out[:, i, :], compression="gzip")
+
+            global_group = h5.create_group("global")
+            global_group.attrs["field_names"] = np.asarray(self.glob_names, dtype="S")
+            global_group.create_dataset("fields", data=globout, compression="gzip")
+
+            for i, name in enumerate(self.glob_names):
+                if i < globout.shape[1]:
+                    global_group.create_dataset(name, data=globout[:, i], compression="gzip")
+
+        return path
+
+    def read_hdf5(self, filename: str | Path) -> dict[str, Any]:
+        """
+        Read GBDD HDF5 result file and restore the main arrays on self.
+
+        Sets:
+            self.time_out
+            self.xout
+            self.vout
+            self.pu_out
+            self.globout
+            self.nout
+
+        Returns a dictionary with arrays and metadata.
+        """
+
+        path = Path(filename)
+
+        with h5py.File(path, "r") as h5:
+            time_out = h5["time"][()]
+            xout = h5["x"][()]
+            vout = h5["gb/fields"][()]
+            pu_out = h5["pileup/fields"][()]
+            globout = h5["global/fields"][()]
+
+            metadata = self._read_attrs(h5["metadata"]) if "metadata" in h5 else {}
+            material = self._read_attrs(h5["material"]) if "material" in h5 else {}
+            simulation = self._read_attrs(h5["simulation"]) if "simulation" in h5 else {}
+            attrs = self._read_attrs(h5)
+
+            gb = {
+                name: h5[f"gb/{name}"][()]
+                for name in self.field_names
+                if f"gb/{name}" in h5
+            }
+
+            pileup = {
+                name: h5[f"pileup/{name}"][()]
+                for name in self.dis_names
+                if f"pileup/{name}" in h5
+            }
+
+            global_data = {
+                name: h5[f"global/{name}"][()]
+                for name in self.glob_names
+                if f"global/{name}" in h5
+            }
+
+        self.time_out = time_out
+        self.xout = xout
+        self.vout = vout
+        self.pu_out = pu_out
+        self.globout = globout
+        self.nout = int(simulation.get("nout", len(time_out)))
+
+        return {
+            "time": time_out,
+            "x": xout,
+            "vout": vout,
+            "pu_out": pu_out,
+            "globout": globout,
+            "gb": gb,
+            "pileup": pileup,
+            "global": global_data,
+            "metadata": metadata,
+            "material": material,
+            "simulation": simulation,
+            "attrs": attrs,
+        }
+
+    @staticmethod
+    def _normalize_names(names: NameOrNames, valid_names: Sequence[str]) -> list[str]:
+        if names is None:
+            return []
+        if isinstance(names, str):
+            if names.lower() in {"all", "a"}:
+                return list(valid_names)
+            return [names]
+        return list(names)
+
+    def _parameter_vector(self) -> np.ndarray:
+        return np.asarray(
+            [getattr(self, key) for key in self.GBDD_PARAM_KEYS],
+            dtype=np.float64,
+        )
+
+    def _write_attrs(self, group: h5py.Group, attrs: dict[str, Any]) -> None:
+        """Write scalar metadata attributes safely to an HDF5 group."""
+        for key, value in attrs.items():
+            if value is None:
+                continue
+            if isinstance(value, Path):
+                value = str(value)
+            if isinstance(value, str):
+                group.attrs[key] = np.bytes_(value)
+            elif np.isscalar(value):
+                group.attrs[key] = value
+            else:
+                group.attrs[key] = np.asarray(value)
+
+    def _read_attrs(self, group: h5py.Group) -> dict[str, Any]:
+        """Read HDF5 attributes and decode byte strings."""
+        out: dict[str, Any] = {}
+        for key, value in group.attrs.items():
+            if isinstance(value, bytes):
+                out[key] = value.decode()
+            elif isinstance(value, np.bytes_):
+                out[key] = value.decode()
+            else:
+                out[key] = value
+        return out
