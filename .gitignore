@@ -28,7 +28,7 @@ share/python-wheels/
 PK_force/
 PK_force_OLD/
 mod_gbdd/
-mod_gbbdd_OLD
+mod_gbdd_OLD
 Archive/
 
 # PyInstaller
