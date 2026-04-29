@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from importlib.metadata import metadata
+
 from numpy.typing import ArrayLike, NDArray
 from typing import Any, TypeAlias
 from pathlib import Path
@@ -33,39 +35,11 @@ class GB_dislocations:
         tfin: float = 5000.0e6,
         dtmax: float = 400.0,
         screenout: bool = False,
+        from_file: str | None = None,
     ) -> None:
+
         from pylabdd.mod_gbdd import calc_gbdd
-
         self.calc_gbdd: Callable[..., tuple[Any, ...]] = calc_gbdd
-        # model parameters
-        self.tau0: float = float(tau0)
-        self.temp: float = float(temp)
-        self.Dgp: float = float(len_gb_seg)
-        self.D2: float = float(grains_size)
-        self.Ngbn: int = int(Ngbn)
-        self.maxdis: int = int(maxdis)
-        self.maxout: int = int(maxout)
-        self.niter: int = int(niter)
-        self.tfin: float = float(tfin)
-        self.dtmax: float = float(dtmax)
-        self.screenout: bool = bool(screenout)
-        #constitutive parameters
-        self.mu: float = 44.e3  # shear modulus (MPa)
-        self.nu: float = 0.3  # Poisson ration
-        self.B: float = 0.25e-3  # bulk Burgers vector norm (micron)
-        self.delta: float = 5.e-4  # GB thickness (micron)
-        self.Qact: float = 57.e3  # activation energy for GB diffusion (J/mol)
-        self.drag: float = 500.  # dislocation drag coefficient; mobility = B / drag
-        self.Dif_gb: float = 10.  # GB diffusion coeff (micron^2/micro s)
-
-        if self.Ngbn <= 0:
-            raise ValueError("Ngbn must be positive.")
-        if self.maxdis <= 0:
-            raise ValueError("maxdis must be positive.")
-        if self.maxout <= 0:
-            raise ValueError("maxout must be positive.")
-        if self.niter <= 0:
-            raise ValueError("niter must be positive.")
 
         # Define names for output quantities. These names must match the order
         # used by the Fortran subroutine.
@@ -102,24 +76,57 @@ class GB_dislocations:
 
         self.dis_names: list[str] = ["position", "force", "velocity"]
 
-        self.nfield: int = len(self.field_names)
-        self.nglob: int = len(self.glob_names)
-        self.npuval: int = len(self.dis_names)
+        if from_file is not None:
+            self.read_hdf5(from_file)
+        else:
+            # model parameters
+            self.tau0: float = float(tau0)
+            self.temp: float = float(temp)
+            self.Dgp: float = float(len_gb_seg)
+            self.D2: float = float(grains_size)
+            self.Ngbn: int = int(Ngbn)
+            self.maxdis: int = int(maxdis)
+            self.maxout: int = int(maxout)
+            self.niter: int = int(niter)
+            self.tfin: float = float(tfin)
+            self.dtmax: float = float(dtmax)
+            self.screenout: bool = bool(screenout)
+            #constitutive parameters
+            self.mu: float = 44.e3  # shear modulus (MPa)
+            self.nu: float = 0.3  # Poisson ration
+            self.B: float = 0.25e-3  # bulk Burgers vector norm (micron)
+            self.delta: float = 5.e-4  # GB thickness (micron)
+            self.Qact: float = 57.e3  # activation energy for GB diffusion (J/mol)
+            self.drag: float = 500.  # dislocation drag coefficient; mobility = B / drag
+            self.Dif_gb: float = 10.  # GB diffusion coeff (micron^2/micro s)
 
-        # Results are initialized by run_sim().
-        self.time_out = None
-        self.xout = None
-        self.vout = None
-        self.pu_out = None
-        self.globout = None
-        self.field_data: dict[str, FloatArray] | None = None
-        self.glob_data: dict[str, FloatArray] | None = None
-        self.pu_dis: dict[str, FloatArray] | None = None
-        self.gb_node_pos: FloatArray | None = None
-        self.sim_time: FloatArray | None = None
-        self.it_done: int | None = None
-        self.npu_max: int | None = None
-        self.nout: int | None = None
+            if self.Ngbn <= 0:
+                raise ValueError("Ngbn must be positive.")
+            if self.maxdis <= 0:
+                raise ValueError("maxdis must be positive.")
+            if self.maxout <= 0:
+                raise ValueError("maxout must be positive.")
+            if self.niter <= 0:
+                raise ValueError("niter must be positive.")
+
+            self.nfield: int = len(self.field_names)
+            self.nglob: int = len(self.glob_names)
+            self.npuval: int = len(self.dis_names)
+
+            # Results are initialized by run_sim().
+            self.time_out = None
+            self.xout = None
+            self.vout = None
+            self.pu_out = None
+            self.globout = None
+            self.field_data: dict[str, FloatArray] | None = None
+            self.glob_data: dict[str, FloatArray] | None = None
+            self.pu_dis: dict[str, FloatArray] | None = None
+            self.gb_node_pos: FloatArray | None = None
+            self.sim_time: FloatArray | None = None
+            self.it_done: int | None = None
+            self.npu_max: int | None = None
+            self.nout: int | None = None
 
     def run_sim(self) -> None:
         """Run the Fortran GB-dislocation simulation and store the results."""
@@ -376,23 +383,18 @@ class GB_dislocations:
             "institution": "Ruhr-Universitaet Bochum, ICAMS",
             "copyright": "Copyright (c) 2013-2026 by the Author. All rights reserved.",
             "license": "GNU General Public License version 3 (GNU GPL-3.0)",
-        }
-
-        material = {
             "shear_modulus": self.mu,
             "poisson_ratio": self.nu,
-            "temperature": self.temp,
             "dislocation_drag": self.drag,
-            "grain_size": self.D2,
-            "length_grain_boundary": self.Dgp,
-            "burgers_vector_norm_B_micron": self.B,
+            "burgers_vector_norm": self.B,
             "gb_cell_size": self.Dgp / (self.Ngbn - 1),
             "gb_thickness": self.delta,
             "activation_energy": self.Qact,
-        }
-
-        simulation = {
+            "diffusion_coeff": self.Dif_gb,
             "tau0": self.tau0,
+            "temperature": self.temp,
+            "grain_size": self.D2,
+            "length_grain_boundary": self.Dgp,
             "tfin": self.tfin,
             "dtmax": self.dtmax,
             "niter": self.niter,
@@ -400,11 +402,12 @@ class GB_dislocations:
             "nout": nout,
             "Ngbn": self.Ngbn,
             "maxdis": self.maxdis,
-            "Npu_max": self.npu_max,
+            "npu_max": self.npu_max,
             "center_node": int((self.Ngbn + 1) / 2),
             "nfields": vout.shape[1],
             "nglob": globout.shape[1],
-            "maxout": nt,
+            "maxout": nt
+
         }
 
         with h5py.File(path, mode) as h5:
@@ -414,14 +417,8 @@ class GB_dislocations:
             meta_group = h5.create_group("metadata")
             self._write_attrs(meta_group, metadata)
 
-            material_group = h5.create_group("material")
-            self._write_attrs(material_group, material)
-
-            simulation_group = h5.create_group("simulation")
-            self._write_attrs(simulation_group, simulation)
-
             h5.create_dataset("time", data=time_out, compression="gzip")
-            h5.create_dataset("x", data=xout, compression="gzip")
+            h5.create_dataset("xval", data=xout, compression="gzip")
 
             gb_group = h5.create_group("gb")
             gb_group.attrs["field_names"] = np.asarray(self.field_names, dtype="S")
@@ -467,56 +464,54 @@ class GB_dislocations:
         path = Path(filename)
 
         with h5py.File(path, "r") as h5:
-            time_out = h5["time"][()]
-            xout = h5["x"][()]
-            vout = h5["gb/fields"][()]
-            pu_out = h5["pileup/fields"][()]
-            globout = h5["global/fields"][()]
-
-            metadata = self._read_attrs(h5["metadata"]) if "metadata" in h5 else {}
-            material = self._read_attrs(h5["material"]) if "material" in h5 else {}
-            simulation = self._read_attrs(h5["simulation"]) if "simulation" in h5 else {}
-            attrs = self._read_attrs(h5)
-
-            gb = {
+            self.gb_node_pos = h5["xval"][()]
+            self.sim_time = h5["time"][()]
+            self.time_out = self.sim_time
+            self.xout = self.gb_node_pos
+            self.vout = h5["gb/fields"][()]
+            self.pu_out = h5["pileup/fields"][()]
+            self.globout = h5["global/fields"][()]
+            self.attrs = self._read_attrs(h5)
+            self.field_data = {
                 name: h5[f"gb/{name}"][()]
                 for name in self.field_names
                 if f"gb/{name}" in h5
             }
-
-            pileup = {
+            self.pu_dis = {
                 name: h5[f"pileup/{name}"][()]
                 for name in self.dis_names
                 if f"pileup/{name}" in h5
             }
-
-            global_data = {
+            self.glob_data = {
                 name: h5[f"global/{name}"][()]
                 for name in self.glob_names
                 if f"global/{name}" in h5
             }
+            metadata = self._read_attrs(h5["metadata"]) if "metadata" in h5 else {}
 
-        self.time_out = time_out
-        self.xout = xout
-        self.vout = vout
-        self.pu_out = pu_out
-        self.globout = globout
-        self.nout = int(simulation.get("nout", len(time_out)))
-
-        return {
-            "time": time_out,
-            "x": xout,
-            "vout": vout,
-            "pu_out": pu_out,
-            "globout": globout,
-            "gb": gb,
-            "pileup": pileup,
-            "global": global_data,
-            "metadata": metadata,
-            "material": material,
-            "simulation": simulation,
-            "attrs": attrs,
-        }
+        # simulation parameters
+        self.tau0 = metadata["tau0"]
+        self.temp = metadata["temperature"]
+        self.Dgp = metadata["length_grain_boundary"]
+        self.D2 = metadata["grain_size"]
+        self.Ngbn = metadata["Ngbn"]
+        self.maxdis = metadata["maxdis"]
+        self.maxout = metadata["maxout"]
+        self.niter = metadata["niter"]
+        self.tfin = metadata["tfin"]
+        self.dtmax = metadata["dtmax"]
+        self.it_done = metadata["it"]
+        self.npu_max = metadata["npu_max"]
+        self.nout = metadata["nout"]
+        # constitutive parameters
+        self.mu = metadata["shear_modulus"]
+        self.nu = metadata["poisson_ratio"]
+        self.B = metadata["burgers_vector_norm"]
+        self.delta = metadata["gb_thickness"]
+        self.Qact = metadata["activation_energy"]
+        self.drag = metadata["dislocation_drag"]
+        self.Dif_gb = metadata["diffusion_coeff"]
+        return
 
     @staticmethod
     def _normalize_names(names: NameOrNames, valid_names: Sequence[str]) -> list[str]:
