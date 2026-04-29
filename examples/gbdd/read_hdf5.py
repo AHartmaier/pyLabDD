@@ -1,92 +1,96 @@
+from __future__ import annotations
+
+from typing import Any
 import h5py
 import json
 import numpy as np
 import matplotlib.pyplot as plt
 
-with h5py.File("test_T900_lgb01_Ngbn31_dt0.h5", "r") as f:  # opjbd
-    time = f["time"][:]
-    xval = f["xval"][:]
-    values = f["values"][:]
-    val_names = f["field_names"][:]
-    glob_val = f["global"][:]
-    glob_names = f["global_names"][:]
-    meta = f["metadata_json"][0]
-    try:
-        dislocations = f["dislocations"][:]
-        dis_names = f["dis_names"][:]
-        dis_avail = True
-    except:
-        dis_avail = False
-        print('No data on pilu-up dislocations available')
-
-# Bytes -> Python-Strings
-field_names = [
-    name.decode("utf-8").strip() if isinstance(name, (bytes, np.bytes_)) else str(name).strip()
-    for name in val_names
-]
-glob_names = [
-    name.decode("utf-8").strip() if isinstance(name, (bytes, np.bytes_)) else str(name).strip()
-    for name in glob_names
-]
+def _read_attrs(group: h5py.Group) -> dict[str, Any]:
+    """Read HDF5 attributes and decode byte strings."""
+    out: dict[str, Any] = {}
+    for key, value in group.attrs.items():
+        if isinstance(value, bytes):
+            out[key] = value.decode()
+        elif isinstance(value, np.bytes_):
+            out[key] = value.decode()
+        else:
+            out[key] = value
+    return out
+        
+with h5py.File("gb1_L3_N61_T900_dt5.h5", "r") as f:
+    time = f["time"][()]
+    xval = f["xval"][()]
+    gbfield = f["gb/fields"][()]
+    glob_val = f["global/fields"][()]
+    dislocations = f["pileup/fields"][()] if "pileup" in f else None
+    mdict = _read_attrs(f["metadata"]) if "metadata" in f else {}
+    attrs = _read_attrs(f)
+    names = _read_attrs(f["gb"])["field_names"]
+    field_names = [
+        name.decode("utf-8").strip() if isinstance(name, (bytes, np.bytes_)) else str(name).strip()
+        for name in names
+    ]
+    names = _read_attrs(f["global"])["field_names"]
+    glob_names = [
+        name.decode("utf-8").strip() if isinstance(name, (bytes, np.bytes_)) else str(name).strip()
+        for name in names
+    ]
+    names = _read_attrs(f["pileup"])["field_names"]
+    dis_names = [
+        name.decode("utf-8").strip() if isinstance(name, (bytes, np.bytes_)) else str(name).strip()
+        for name in names
+    ]
 
 nt = len(time)
 nout = 10
 dt = max(1, int(nt / nout))
 print("time.shape   =", time.shape)
 print("xval.shape   =", xval.shape)
-print("values.shape =", values.shape)
+print("gbfield.shape =", gbfield.shape)
 print("field_names  =", field_names)
 print("glob_val.shape =", glob_val.shape)
 print("glob_names  =", glob_names)
-
-print("metadata.type =", type(meta))
-#print(meta.decode("utf-8"))
-mdict = json.loads(meta.decode("utf-8"))
-print(mdict)
+print(attrs)
+print(mdict.keys())
 
 # Felder per Name in Dict ablegen
-field_data = {name: values[:, i, :] for i, name in enumerate(field_names)}
-glob_data = {name: glob_val[i, :] for i, name in enumerate(glob_names)}
-
-#print(field_data['flux'][1:3, :])
+field_data = {name: gbfield[:, i, :] for i, name in enumerate(field_names)}
+glob_data = {name: glob_val[:, i] for i, name in enumerate(glob_names)}
 
 # store parameters
 ts = time*1.e-6
-gs = mdict['parameters']['grain_size']
-Ngbn = mdict['parameters']['number_GB_cells']
+gs = mdict['grain_size']
+Ngbn = mdict['Ngbn']
 
 # process and plot dislocation data if available
-if dis_avail:
-    Npu_max = dislocations.shape[0]
-    if Npu_max > 0:
-        dis_names = [
-            name.decode("utf-8").strip() if isinstance(name, (bytes, np.bytes_)) else str(name).strip()
-            for name in dis_names
-        ]
-        print("dislocations.shape =", dislocations.shape)
-        print("dis_names  =", dis_names)
-        dis_data = {name: dislocations[:, i, :] for i, name in enumerate(dis_names)}
+Npu_max = mdict["npu_max"]
+if Npu_max > 0:
+    print("dislocations.shape =", dislocations.shape)
+    print("dis_names  =", dis_names)
+    dis_data = {name: dislocations[:, i, :] for i, name in enumerate(dis_names)}
 
-        # plot dislocation config
-        for i in range(0, nt, dt):
-            ind = np.nonzero(dislocations[:, 0, i])[0]
-            for j in ind:
-                plt.plot(dislocations[j, 0, i], ts[i],
-                        marker='o',
-                        linestyle='none',
-                        color=plt.cm.viridis(j / Npu_max),
-                        label=f'pile-up@t={ts[i]:.2f}s')
-        plt.xlabel(r'dislocation position ($\mu$m)')
-        plt.ylabel('time (s)')
-        plt.xlim((0, gs*1.05))
-        plt.show()
+    # plot dislocation config
+    for i in range(0, nt, dt):
+        ind = np.nonzero(dislocations[:, 0, i])[0]
+        for j in ind:
+            plt.plot(dislocations[j, 0, i], ts[i],
+                    marker='o',
+                    linestyle='none',
+                    color=plt.cm.viridis(j / Npu_max),
+                    label=f'pile-up@t={ts[i]:.2f}s')
+    plt.xlabel(r'dislocation position ($\mu$m)')
+    plt.ylabel('time (s)')
+    plt.xlim((0, gs*1.05))
+    plt.show()
 
-        plt.plot(ts, dislocations[0,1,:], '-k', label='force #0')
-        plt.legend()
-        plt.show()
+    plt.plot(ts, dislocations[0,1,:], '-k', label='force #0')
+    plt.legend()
+    plt.show()
 
 # plot times series of global values
 gv = glob_data['timestep'][1:]
+print(len(gv), len(ts))
 plt.plot(ts[1:], gv/max(gv), '-b', label='Time step')
 plt.plot(ts[1:], glob_data['n_gbdis_eff'][1:], '-r', label='total gb bv')
 plt.legend()
@@ -105,7 +109,7 @@ plt.show()
 for name in field_names:
     for i in range(0, nt, dt):
         #print(f"Plotting {name} at time {time[i]:.2e} s")
-        yv = field_data[name][:, i]
+        yv = field_data[name][i, :]
         if name=='displacement':
             yv -= np.sum(yv)/Ngbn
         plt.plot(xval, yv, 

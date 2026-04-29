@@ -373,7 +373,7 @@ class GB_dislocations:
 
         time_out = time_out[:nout]
         vout = vout[:nout, :, :]
-        pu_out = pu_out[:nout, :, :]
+        pu_out = pu_out[:nout, :, :self.npu_max]
         globout = globout[:nout, :]
 
         metadata = {
@@ -424,25 +424,25 @@ class GB_dislocations:
             gb_group.attrs["field_names"] = np.asarray(self.field_names, dtype="S")
             gb_group.create_dataset("fields", data=vout, compression="gzip")
 
-            for i, name in enumerate(self.field_names):
-                if i < vout.shape[1]:
-                    gb_group.create_dataset(name, data=vout[:, i, :], compression="gzip")
+            #for i, name in enumerate(self.field_names):
+            #    if i < vout.shape[1]:
+            #        gb_group.create_dataset(name, data=vout[:, i, :], compression="gzip")
 
             pileup_group = h5.create_group("pileup")
             pileup_group.attrs["field_names"] = np.asarray(self.dis_names, dtype="S")
             pileup_group.create_dataset("fields", data=pu_out, compression="gzip")
 
-            for i, name in enumerate(self.dis_names):
-                if i < pu_out.shape[1]:
-                    pileup_group.create_dataset(name, data=pu_out[:, i, :], compression="gzip")
+            #for i, name in enumerate(self.dis_names):
+            #    if i < pu_out.shape[1]:
+            #        pileup_group.create_dataset(name, data=pu_out[:, i, :], compression="gzip")
 
             global_group = h5.create_group("global")
             global_group.attrs["field_names"] = np.asarray(self.glob_names, dtype="S")
             global_group.create_dataset("fields", data=globout, compression="gzip")
 
-            for i, name in enumerate(self.glob_names):
-                if i < globout.shape[1]:
-                    global_group.create_dataset(name, data=globout[:, i], compression="gzip")
+            #for i, name in enumerate(self.glob_names):
+            #    if i < globout.shape[1]:
+            #        global_group.create_dataset(name, data=globout[:, i], compression="gzip")
 
         return path
 
