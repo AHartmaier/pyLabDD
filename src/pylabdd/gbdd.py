@@ -114,8 +114,6 @@ class GB_dislocations:
             self.npuval: int = len(self.dis_names)
 
             # Results are initialized by run_sim().
-            self.time_out = None
-            self.xout = None
             self.vout = None
             self.pu_out = None
             self.globout = None
@@ -130,8 +128,8 @@ class GB_dislocations:
 
     def run_sim(self) -> None:
         """Run the Fortran GB-dislocation simulation and store the results."""
-        self.time_out: FloatArray = np.zeros(self.maxout, dtype=np.float64, order="F")
-        self.xout: FloatArray = np.zeros(self.Ngbn, dtype=np.float64, order="F")
+        self.sim_time: FloatArray = np.zeros(self.maxout, dtype=np.float64, order="F")
+        self.gb_node_pos: FloatArray = np.zeros(self.Ngbn, dtype=np.float64, order="F")
         self.vout: FloatArray = np.zeros(
             (self.maxout, self.nfield, self.Ngbn), dtype=np.float64, order="F"
         )
@@ -157,8 +155,8 @@ class GB_dislocations:
             self.tfin,
             self.niter,
             self.dtmax,
-            self.time_out,
-            self.xout,
+            self.sim_time,
+            self.gb_node_pos,
             self.vout,
             self.pu_out,
             self.globout,
@@ -336,8 +334,8 @@ class GB_dislocations:
         Save GBDD simulation results to HDF5.
 
         Assumes the following arrays exist on self:
-            self.time_out,
-            self.xout,
+            self.sim_time,
+            self.gb_node_pos,
             self.vout,
             self.pu_out,
             self.globout,
@@ -348,8 +346,8 @@ class GB_dislocations:
         path = Path(filename)
         mode = "w" if overwrite else "x"
 
-        time_out = np.asarray(self.time_out, dtype=np.float64)
-        xout = np.asarray(self.xout, dtype=np.float64)
+        time_out = np.asarray(self.sim_time, dtype=np.float64)
+        xout = np.asarray(self.gb_node_pos, dtype=np.float64)
         vout = np.asarray(self.vout, dtype=np.float64)
         pu_out = np.asarray(self.pu_out, dtype=np.float64)
         globout = np.asarray(self.globout, dtype=np.float64)
@@ -451,8 +449,8 @@ class GB_dislocations:
         Read GBDD HDF5 result file and restore the main arrays on self.
 
         Sets:
-            self.time_out
-            self.xout
+            self.sim_time
+            self.gb_node_pos
             self.vout
             self.pu_out
             self.globout
@@ -466,8 +464,6 @@ class GB_dislocations:
         with h5py.File(path, "r") as h5:
             self.gb_node_pos = h5["xval"][()]
             self.sim_time = h5["time"][()]
-            self.time_out = self.sim_time
-            self.xout = self.gb_node_pos
             self.vout = h5["gb/fields"][()]
             self.pu_out = h5["pileup/fields"][()]
             self.globout = h5["global/fields"][()]

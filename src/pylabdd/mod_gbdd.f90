@@ -6,6 +6,8 @@
 ! 2026-04-24: v1.1.1: Added output for pile-up dislocations
 ! 2026-04-24: v2.0.0: Split into subroutine and lean main for Python integration
 ! 2026-04-24: v2.1.0: Strip HDF5 output for Python integration
+! 2026-04-27: v2.1.1: Introduced params-vector to interface to pass material parameters
+! 2026-04-29: v2.1.2: Updated equations according to paper v1.1
 !
 ! Author: Alexander Hartmaier
 ! Institution: Ruhr-Universitaet Bochum, ICAMS
@@ -50,13 +52,13 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     real(8) :: R, delta, Dif_gb, D0, Qact
     real(8) :: twr0  ! sim_time interval (microseconds) for sim_time series output, std: 20d6
     real(8) :: frk(maxdis), yrk(maxdis), Jf(Ngbn), bdot(Ngbn)
-    real(8) :: dGdb(Ngbn)
+    real(8) :: dGdb(Ngbn), Upot(Ngbn, Ngbn)
     real(8) :: ts(nsav), gps(nsav)
     real(8) :: dt, ttot, eps
     real(8) :: gdpl, gplast, vmax, bdmax
     real(8) :: epsmax, edtot, cdist
     real(8) :: twr
-    real(8) :: hh, hh1, hh2, hx2, hy2, gbdxD2, hc
+    real(8) :: hh, hh1, hh2, hx2, hy2, gbdxD2, hc, og2
     integer :: Nc, Npu, Nabs
     integer :: nfields, nglob, maxout, nwr
     integer :: i, k, ih, iwr, j
@@ -74,7 +76,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         error stop "GBDD parameter vector is too long."
     end if
     call init()
-    print*, "START", temp, Ngbn, Dgp
+    print*, "START w/o 0.5, w og2", temp, Ngbn, Dgp
 
     ih = int(D2*10)
     !pname = 'gbdd-tau'// char(int(tau0/100)+48)//char(mod(int(tau0),100)/10+48) // &
@@ -189,9 +191,9 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             gdpl = (hh-gplast)/dt
             gplast = hh
         else
-            hh = dtmax*min(1.e-12/bdmax, 1.d0)
+            hh = dtmax*min(1.e-11/bdmax, 1.d0)
             if (hh < 0.5d0*dt) then
-                dt = dt
+                dt = hh
             else
                 dt = 0.2d0*hh + 0.8d0*dt
             end if
@@ -223,12 +225,20 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             hx2 = (i-Nc)*gbdx
             hx2 = hx2*hx2
             ! contribution of GB elastic field: U(x_i, x_j)
-            do k=1,i-1 
-                hh1 = hh1 + bfield(k)*log((i-k)*gbdxD2)
+            do k=1,i-1
+                hh = log((i-k)*gbdxD2) - Upot(i,k)  ! new in v2.1.2
+                if (abs(hh) > 1.d-6) then
+                    print*, 'Fehler in Upot1'
+                end if
+                hh1 = hh1 + bfield(k)*Upot(i,k)
 !                hh1 = hh1 + bfield(k)*log(sin(pi*(i-k)/Ngbn))
             end do 
-            do k=i+1,Ngbn 
-               hh1 = hh1 + bfield(k)*log((k-i)*gbdxD2)
+            do k=i+1,Ngbn
+                hh = log((k-i)*gbdxD2) - Upot(i,k)
+                if (abs(hh) > 1.d-6) then
+                    print*, 'Fehler in Upot2'
+                end if
+               hh1 = hh1 + bfield(k)*Upot(i,k)
 !                hh1 = hh1 + bfield(k)*log(sin(pi*(k-i)/Ngbn))
             end do
             ! contribution of pile-up/GB dis interaction: V(x_i, y_j)
@@ -239,13 +249,12 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
                 !hh2 = hh2 + hx2/(hx2 + hy2) + log(sqrt(hx2+hy2)/B); ! old version, v1.0.0
                 hh = sqrt(hx2+hy2)/D2
                 hc = hy2 / (hx2 + hy2)
-                if (hh>1.0d-6) then
-                    hh2 = hh2 + log(hh) * sqrt(1.d0 + 4.d0*hc - 4.d0*hc*hc)  ! new version, v1.1.0
-                else
-                    print *, 'Small distance of pile-up to GB', i, k, hx2, hy2
-                end if
+                hh2 = hh2 + log(hh) * sqrt(1.d0 + 4.d0*hc - 4.d0*hc*hc)  ! new version, v1.1.0
             end do
-            dGdb(i) = mu*bfield(i) - 0.5d0*C*hh1 - C*B*hh2
+            dGdb(i) = mu*bfield(i) - C*hh1 - C*B*hh2  ! mu*bfield(i) ! new in v2.1.2
+            !if (mod(it,100)==0) then
+            !    print*,mu*bfield(i), C*hh1, dt
+            !end if
         end do
         do i=2,Ngbn-1
             Jf(i) = - DC*( 2.d0*dGdb(i) - dGdb(i-1) - dGdb(i+1) )
@@ -271,8 +280,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         ! calculate GB Burgers vectors from flux rate 
         bdmax = 0.d0
         do i=2,Ngbn-1
-            hh = 2.d0*Jf(i) - Jf(i-1) - Jf(i+1)
-            hh = hh*Omega/gbdx
+            hh = og2*(2.d0*Jf(i) - Jf(i-1) - Jf(i+1))  ! new in v2.1.2
             bfield(i) = bfield(i) + hh*dt
             bdot(i) = hh
             if (bdmax < abs(hh)) bdmax=abs(hh)
@@ -307,8 +315,8 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             write(40,500) it, ttot*1.d-6, dt, gdpl*1.d6, hh1, gplast, tau0, &
                 bdmax, vmax, hh2, Npu, Nabs, hh
             if (screen_out) &
-                write(*,*) "Iteration: dt, ttot, sum(bdot), sum(bfield)", &
-                        it, dt, ttot*1.d-6, sum(bdot), sum(bfield)
+                write(*,*) "Iteration, dt, ttot(s), max(bdot), sum(bfield)", &
+                        it, dt, ttot*1.d-6, bdmax, sum(bfield)
                 !do i=1,ih5
                 !    write(*,*) pu_out(i, 1, :Npu)
                 !end do
@@ -422,7 +430,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
 contains
     subroutine init()
         implicit none
-        integer :: i
+        integer :: i, k
 
         ! initialize fields
         time_out = 0.d0
@@ -461,7 +469,7 @@ contains
 
         ! set numerical parameters
         twr0 = 0.001 *tfin / maxout ! std: 20d6
-        dt = 0.05 ! initial time step (microseconds)
+        dt = dtmax*1.d-4  ! 0.05 ! initial time step (microseconds)
         nwr = niter / 100
         eps = 1.d-20
         epsmax = 1.5d-2
@@ -471,9 +479,17 @@ contains
         Nc = (Ngbn+1)/2 !center of GB
         gbdx = Dgp/(Ngbn-1) ! size of GB elements
         gbdxD2 = gbdx/D2
+        og2 = Omega*B/(gbdx*gbdx)
         DC = D0*delta/(R*temp*gbdx*gbdx) !D delta/ (RT gbdx**2)
-        do i=1,Ngbn 
+        Upot = 0.d0
+        do i=1,Ngbn
             xout(i) = (i-Nc)*gbdx
+            do k=1, i-1
+                Upot(i, k) = log((i-k)*gbdxD2)
+            end do
+            do k=i+1, Ngbn
+                Upot(i, k) = log((k-i)*gbdxD2)
+            end do
         end do
         Nabs = 0 ! number of dislocations absorbed in GB
         Npu = 0 ! number of dislocations in pile up (on slip plane), we start with 1
