@@ -76,7 +76,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         error stop "GBDD parameter vector is too long."
     end if
     call init()
-    print*, "START w/o 0.5, w og2", temp, Ngbn, Dgp
+    print*, "START", temp, Ngbn, Dgp
 
     ih = int(D2*10)
     !pname = 'gbdd-tau'// char(int(tau0/100)+48)//char(mod(int(tau0),100)/10+48) // &
@@ -225,20 +225,8 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             hx2 = (i-Nc)*gbdx
             hx2 = hx2*hx2
             ! contribution of GB elastic field: U(x_i, x_j)
-            do k=1,i-1
-                hh = log((i-k)*gbdxD2) - Upot(i,k)  ! new in v2.1.2
-                if (abs(hh) > 1.d-6) then
-                    print*, 'Fehler in Upot1'
-                end if
-                hh1 = hh1 + bfield(k)*Upot(i,k)
-!                hh1 = hh1 + bfield(k)*log(sin(pi*(i-k)/Ngbn))
-            end do 
-            do k=i+1,Ngbn
-                hh = log((k-i)*gbdxD2) - Upot(i,k)
-                if (abs(hh) > 1.d-6) then
-                    print*, 'Fehler in Upot2'
-                end if
-               hh1 = hh1 + bfield(k)*Upot(i,k)
+            do k=1,Ngbn
+               hh1 = hh1 + bfield(k)*Upot(i,k)  ! Upot(i,i) = 0
 !                hh1 = hh1 + bfield(k)*log(sin(pi*(k-i)/Ngbn))
             end do
             ! contribution of pile-up/GB dis interaction: V(x_i, y_j)
@@ -251,8 +239,8 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
                 hc = hy2 / (hx2 + hy2)
                 hh2 = hh2 + log(hh) * sqrt(1.d0 + 4.d0*hc - 4.d0*hc*hc)  ! new version, v1.1.0
             end do
-            dGdb(i) = mu*bfield(i) - C*hh1 - C*B*hh2  ! mu*bfield(i) ! new in v2.1.2
-            !if (mod(it,100)==0) then
+            dGdb(i) = mu*bfield(i) - 0.5*C*hh1 - C*B*hh2  ! mu*bfield(i) ! new in v2.1.2
+            !if (mod(it,200)==0) then
             !    print*,mu*bfield(i), C*hh1, dt
             !end if
         end do
@@ -479,7 +467,7 @@ contains
         Nc = (Ngbn+1)/2 !center of GB
         gbdx = Dgp/(Ngbn-1) ! size of GB elements
         gbdxD2 = gbdx/D2
-        og2 = Omega*B/(gbdx*gbdx)
+        og2 = Omega/gbdx
         DC = D0*delta/(R*temp*gbdx*gbdx) !D delta/ (RT gbdx**2)
         Upot = 0.d0
         do i=1,Ngbn
