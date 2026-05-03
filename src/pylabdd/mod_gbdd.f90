@@ -242,7 +242,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         end do
         if ((mod(it,1000)==0).and.(dt>dtmax*0.9)) then
             df = min(df*(1.d0+dtmax*1.d-7), 1.d0)  ! gradually increase damping factor to 1 (no damping)
-            print*,mu*bfield(Nc), df*C*hh1, dt, df
+            !print*,mu*bfield(Nc), df*C*hh1, dt, df
         end if
         do i=2,Ngbn-1
             Jf(i) = - DC*( 2.d0*dGdb(i) - dGdb(i-1) - dGdb(i+1) )
