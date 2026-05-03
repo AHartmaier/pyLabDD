@@ -302,20 +302,26 @@ class GB_dislocations:
         ts = time * 1.0e-6
 
         for field in selected_names:
+            if field == "displacement":
+                ylab = r"$u$ ($\mu$m)"
+            elif field == "flux":
+                ylab = r"$J$ (1/s)"
+            elif field == "bfield":
+                ylab = r"$b$ ($\mu$m)"
+            else:
+                ylab = field
             for i in range(0, nout, dt):
                 yv = field_data[field][i, :].copy()
                 if field == "displacement":
                     yv -= np.mean(yv)
-                    ylab = r"$u$ ($\mu$m)"
-                else:
-                    ylab = field
                 plt.plot(
                     gb_node_pos,
                     yv,
                     marker="none",
                     linestyle="-",
                     color=plt.cm.viridis(i / max(1, nout)),
-                    label=f"t={ts[i]:.2f}s",
+                    label=f"t={int(ts[i])}" + r"$\cdot$10$^3$ s",
+                    #label=f"t={ts[i]:.1f} s",
                 )
             plt.legend()
             plt.ylabel(ylab)
@@ -345,7 +351,7 @@ class GB_dislocations:
         ts = time * 1.0e-6
 
         for i in range(0, nout, dt):
-            active = np.nonzero(positions[i, :])[0]
+            active = np.nonzerho(positions[i, :])[0]
             if active.size == 0:
                 continue
             plt.plot(
