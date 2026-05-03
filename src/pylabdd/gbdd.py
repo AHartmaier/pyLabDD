@@ -50,6 +50,11 @@ class GB_dislocations:
             "bfield",
             "displacement",
         ]
+        self.pu_names: list[str] = [
+            "position",
+            "force",
+            "velocity",
+        ]
         self.glob_names: list[str] = [
             "iteration",
             "timestep",
@@ -80,17 +85,17 @@ class GB_dislocations:
             self.read_hdf5(from_file)
         else:
             # model parameters
-            self.tau0: float = float(tau0)
-            self.temp: float = float(temp)
-            self.Dgp: float = float(len_gb_seg)
-            self.D2: float = float(grains_size)
-            self.Ngbn: int = int(Ngbn)
-            self.maxdis: int = int(maxdis)
-            self.maxout: int = int(maxout)
-            self.niter: int = int(niter)
-            self.tfin: float = float(tfin)
-            self.dtmax: float = float(dtmax)
-            self.screenout: bool = bool(screenout)
+            self.tau0: float = float(tau0)  # applied stress
+            self.temp: float = float(temp)  # temperature
+            self.Dgp: float = float(len_gb_seg)  # length of GB-segment
+            self.D2: float = float(grains_size)  # length of pile-up
+            self.Ngbn: int = int(Ngbn)  # number of GB nodes
+            self.maxdis: int = int(maxdis)  # maximum number of dislocations in pile-up
+            self.maxout: int = int(maxout)  # maximum number of elements in output file
+            self.niter: int = int(niter)  # maximum number of iteration steps
+            self.tfin: float = float(tfin)  # maximum physical time for simulation
+            self.dtmax: float = float(dtmax)  # maximum time step
+            self.screenout: bool = bool(screenout)  # print info on progress on screen
             #constitutive parameters
             self.mu: float = 44.e3  # shear modulus (MPa)
             self.nu: float = 0.3  # Poisson ration
@@ -216,7 +221,11 @@ class GB_dislocations:
             self.npu_max,
         )
 
-    def plot_time_series(self, names: NameOrNames = None, semi_log: bool = False) -> None:
+    def plot_time_series(self, 
+                         names: NameOrNames = None, 
+                         semi_log: bool = False,
+                         file: str | None = None,
+                         path: str | None = None) -> None:
         """Plot sim_time series of selected global values."""
         _, glob_data, _, _, time, _, _ = self._require_results()
         selected_names = self._normalize_names(names, self.glob_names)
@@ -227,7 +236,13 @@ class GB_dislocations:
         if missing:
             raise KeyError(f"Unknown global field(s): {missing}")
 
-        ts = time * 1.0e-6
+        if file is not None:
+            if path is None:
+                path = "./"
+            elif path[-1] != "/":
+                path += "/"
+
+        ts = time * 1.0e-9
         ylabel = "data" if len(selected_names) > 1 else selected_names[0]
         colors = ["k", "r", "b", "g", "c", "m", "orange"]
 
@@ -255,11 +270,17 @@ class GB_dislocations:
 
         if len(selected_names) > 1:
             plt.legend()
-        plt.xlabel("sim_time (s)")
+        plt.xlabel(r"$t$ (10$^3$ s)")
         plt.ylabel(ylabel)
+        if file is not None:
+            plt.savefig(path + file, dpi=300)
         plt.show()
 
-    def plot_field(self, names: NameOrNames = None, nplot: int = 10) -> None:
+    def plot_field(self, 
+                   names: NameOrNames = None, 
+                   nplot: int = 10,
+                   file: str | None = None,
+                   path: str | None = None) -> None:
         """Plot selected field data over the grain boundary."""
         field_data, _, _, gb_node_pos, time, nout, _ = self._require_results()
         selected_names = self._normalize_names(names, self.field_names)
@@ -271,6 +292,11 @@ class GB_dislocations:
         missing = [name for name in selected_names if name not in field_data]
         if missing:
             raise KeyError(f"Unknown field(s): {missing}")
+        if file is not None:
+            if path is None:
+                path = "./"
+            elif path[-1] != "/":
+                path += "/"
 
         dt = max(1, nout // nplot)
         ts = time * 1.0e-6
@@ -280,6 +306,9 @@ class GB_dislocations:
                 yv = field_data[field][i, :].copy()
                 if field == "displacement":
                     yv -= np.mean(yv)
+                    ylab = r"$u$ ($\mu$m)"
+                else:
+                    ylab = field
                 plt.plot(
                     gb_node_pos,
                     yv,
@@ -289,17 +318,27 @@ class GB_dislocations:
                     label=f"t={ts[i]:.2f}s",
                 )
             plt.legend()
-            plt.ylabel(field)
+            plt.ylabel(ylab)
             plt.xlabel(r"x ($\mu$m)")
+            if file is not None:
+                plt.savefig(path+field+'_'+file, dpi=300)
             plt.show()
 
-    def plot_pile_up(self, nplot: int = 10) -> None:
+    def plot_pile_up(self, 
+                     nplot: int = 10,
+                     file: str | None = None,
+                     path: str | None = None) -> None:
         """Plot pile-up dislocation positions as a function of sim_time."""
         _, _, pu_dis, _, time, nout, npu_max = self._require_results()
         if nplot <= 0:
             raise ValueError("nplot must be positive.")
         if npu_max <= 0:
             return
+        if file is not None:
+            if path is None:
+                path = "./"
+            elif path[-1] != "/":
+                path += "/"
 
         positions = pu_dis["position"]
         dt = max(1, nout // nplot)
@@ -321,6 +360,8 @@ class GB_dislocations:
         plt.xlabel(r"dislocation position ($\mu$m)")
         plt.ylabel("sim_time (s)")
         plt.xlim((0.0, self.D2 * 1.05))
+        if file is not None:
+            plt.savefig(path + file, dpi=300)
         plt.show()
 
     def save_hdf5(
@@ -468,22 +509,23 @@ class GB_dislocations:
             self.pu_out = h5["pileup/fields"][()]
             self.globout = h5["global/fields"][()]
             self.attrs = self._read_attrs(h5)
-            self.field_data = {
-                name: h5[f"gb/{name}"][()]
-                for name in self.field_names
-                if f"gb/{name}" in h5
-            }
-            self.pu_dis = {
-                name: h5[f"pileup/{name}"][()]
-                for name in self.dis_names
-                if f"pileup/{name}" in h5
-            }
-            self.glob_data = {
-                name: h5[f"global/{name}"][()]
-                for name in self.glob_names
-                if f"global/{name}" in h5
-            }
             metadata = self._read_attrs(h5["metadata"]) if "metadata" in h5 else {}
+            names = self._read_attrs(h5["gb"])["field_names"]
+            self.field_names = [
+                name.decode("utf-8").strip() if isinstance(name, (bytes, np.bytes_)) else str(name).strip()
+                for name in names
+            ]
+            names = self._read_attrs(h5["global"])["field_names"]
+            self.glob_names = [
+                name.decode("utf-8").strip() if isinstance(name, (bytes, np.bytes_)) else str(name).strip()
+                for name in names
+            ]
+            names = self._read_attrs(h5["pileup"])["field_names"]
+            self.dis_names = [
+                name.decode("utf-8").strip() if isinstance(name, (bytes, np.bytes_)) else str(name).strip()
+                for name in names
+            ]
+
 
         # simulation parameters
         self.tau0 = metadata["tau0"]
@@ -507,6 +549,19 @@ class GB_dislocations:
         self.Qact = metadata["activation_energy"]
         self.drag = metadata["dislocation_drag"]
         self.Dif_gb = metadata["diffusion_coeff"]
+        # set convenience dicts
+        self.field_data = {
+            name: self.vout[:, i, :].copy()
+            for i, name in enumerate(self.field_names)
+        }
+        self.pu_dis = {
+            name: self.pu_out[:, i, :].copy()
+            for i, name in enumerate(self.dis_names)
+        }
+        self.glob_data = {
+            name: self.globout[:, i].copy()
+            for i, name in enumerate(self.glob_names)
+        }
         return
 
     @staticmethod

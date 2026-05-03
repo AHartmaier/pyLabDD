@@ -1,5 +1,5 @@
 ! Grain Boundary Dislocation Dynamics
-! version 1.1.0
+! version 2.1.2
 ! based on GB-dislo, version 2013-11-18
 ! 2026-04-22: v1.0.0: Initial version, added HDF5 output
 ! 2026-04-22: v1.1.0: Corrected mathematical expressions for Peach-Kohler force and GB elastic field
@@ -7,7 +7,7 @@
 ! 2026-04-24: v2.0.0: Split into subroutine and lean main for Python integration
 ! 2026-04-24: v2.1.0: Strip HDF5 output for Python integration
 ! 2026-04-27: v2.1.1: Introduced params-vector to interface to pass material parameters
-! 2026-04-29: v2.1.2: Updated equations according to paper v1.1
+! 2026-04-29: v2.1.2: Updated equations for dGdb with damping factor df, inactivate PRT file
 !
 ! Author: Alexander Hartmaier
 ! Institution: Ruhr-Universitaet Bochum, ICAMS
@@ -49,7 +49,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     real(8), intent(out) :: pu_out(:, :, :), globout(:, :)
     real(8) :: bfield(Ngbn), ypu(maxdis), fdis(maxdis), vdis(maxdis)
     real(8) :: M, C, DC, B, mu, nu, Omega, pi, gbdx, drag
-    real(8) :: R, delta, Dif_gb, D0, Qact
+    real(8) :: R, delta, Dif_gb, D0, Qact, df
     real(8) :: twr0  ! sim_time interval (microseconds) for sim_time series output, std: 20d6
     real(8) :: frk(maxdis), yrk(maxdis), Jf(Ngbn), bdot(Ngbn)
     real(8) :: dGdb(Ngbn), Upot(Ngbn, Ngbn)
@@ -58,12 +58,12 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     real(8) :: gdpl, gplast, vmax, bdmax
     real(8) :: epsmax, edtot, cdist
     real(8) :: twr
-    real(8) :: hh, hh1, hh2, hx2, hy2, gbdxD2, hc, og2
+    real(8) :: hh, hh1, hh2, hx2, hy2, gbdxD2, hc, omdx
     integer :: Nc, Npu, Nabs
     integer :: nfields, nglob, maxout, nwr
     integer :: i, k, ih, iwr, j
 
-    character (len=24) pname
+    !character (len=24) pname
 
     maxout = size(time_out)
     nfields = size(vout, 2)
@@ -80,9 +80,9 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
 
     ih = int(D2*10)
     !pname = 'gbdd-tau'// char(int(tau0/100)+48)//char(mod(int(tau0),100)/10+48) // &
-    pname = 'gb1pt_L001'// &
-        '-T' // char(int(temp)/100+48) // char(mod(int(temp),100)/10+48) // &
-        '-d' // char(ih/1000+48) // char(mod(ih,1000)/100+48) // char(mod(ih,100)/10+48) // char(mod(ih,10)+48) //'.prt'
+    !pname = 'gb1pt_L001'// &
+    !    '-T' // char(int(temp)/100+48) // char(mod(int(temp),100)/10+48) // &
+    !    '-d' // char(ih/1000+48) // char(mod(ih,1000)/100+48) // char(mod(ih,100)/10+48) // char(mod(ih,10)+48) //'.prt'
 
     !start condition: one absorbed dislocation 
     bfield(Nc) = B
@@ -97,33 +97,32 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         vout(1,5,i) = hh
         hh = hh + bfield(i)/B
     end do
-    !vout(1,5,:) = vout(1,5,:) - sum(vout(1,5,:))/Ngbn ! normalization better done in postprocessing
     iwr = 2
     it = 1
 
     ! ---------------------------
     ! write protocol file for sim_time series output
     ! ---------------------------
-    open(40,file=pname, status='unknown', position='rewind')
-    write(40,30) 'GB dislocation dynamics - version 2013-11-19'
-    write(40,30) 'fully boundary conditions for flux, B and elastic field'
-    write(40,10) 'shear modulus (MPa)', mu
-    write(40,10) 'Poisson ratio', nu
-    write(40,10) 'Temperature (K)', temp
-    write(40,10) 'Diffusion coeff D0 (micron^2/micro sec)', D0
-    write(40,10) 'Diffusion constant DC', DC
-    write(40,10) 'dislocation mobility B/(MPa micro sec)', M
-    write(40,10) 'strain rate (1/micro sec)', edtot
-    write(40,10) 'grain size (micron)', D2
-    write(40,10) 'distance of glide planes (micron)', Dgp
-    write(40,10) 'Burgers vector norm (micron)', B
-    write(40,10) 'GB cell size (micron)', gbdx
-    write(40,20) 'number GB cells', Ngbn
-    write(40,30) 'it, ttot (s), dt, gdpl (1/s), dgpl_av (1/s), gplast, tau0, bdmax, vmax, v_av, Npu, Nabs, sum(bfield)'
+    !open(40,file=pname, status='unknown', position='rewind')
+    !write(40,30) 'GB dislocation dynamics - version 2013-11-19'
+    !write(40,30) 'fully boundary conditions for flux, B and elastic field'
+    !write(40,10) 'shear modulus (MPa)', mu
+    !write(40,10) 'Poisson ratio', nu
+    !write(40,10) 'Temperature (K)', temp
+    !write(40,10) 'Diffusion coeff D0 (micron^2/micro sec)', D0
+    !write(40,10) 'Diffusion constant DC', DC
+    !write(40,10) 'dislocation mobility B/(MPa micro sec)', M
+    !write(40,10) 'strain rate (1/micro sec)', edtot
+    !write(40,10) 'grain size (micron)', D2
+    !write(40,10) 'distance of glide planes (micron)', Dgp
+    !write(40,10) 'Burgers vector norm (micron)', B
+    !write(40,10) 'GB cell size (micron)', gbdx
+    !write(40,20) 'number GB cells', Ngbn
+    !write(40,30) 'it, ttot (s), dt, gdpl (1/s), dgpl_av (1/s), gplast, tau0, bdmax, vmax, v_av, Npu, Nabs, sum(bfield)'
 
-    10 format('# ',A40,G14.5)
-    20 format('# ',A40,I8)
-    30 format('# ',A100)
+    !10 format('# ',A40,G14.5)
+    !20 format('# ',A40,I8)
+    !30 format('# ',A100)
 
     !iteration loop 
     !do while (((bdmax>1.e-13).or.(gdpl>1.e-12)).and.(it<=niter)) 
@@ -204,7 +203,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         ! dislocation absorption in GB if first dislocation is close 
         hh = D2
         do i=1,Npu
-            if (ypu(i).lt.hh) then
+            if (ypu(i) < hh) then
                 hh = ypu(i)
                 ih = i
             end if
@@ -239,56 +238,54 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
                 hc = hy2 / (hx2 + hy2)
                 hh2 = hh2 + log(hh) * sqrt(1.d0 + 4.d0*hc - 4.d0*hc*hc)  ! new version, v1.1.0
             end do
-            dGdb(i) = mu*bfield(i) - 0.5*C*hh1 - C*B*hh2  ! mu*bfield(i) ! new in v2.1.2
-            !if (mod(it,200)==0) then
-            !    print*,mu*bfield(i), C*hh1, dt
-            !end if
+            dGdb(i) = mu*bfield(i) - df*C*hh1 - C*B*hh2  ! mu*bfield(i) ! new in v2.1.2
         end do
+        if ((mod(it,1000)==0).and.(dt>dtmax*0.9)) then
+            df = min(df*(1.d0+dtmax*1.d-7), 1.d0)  ! gradually increase damping factor to 1 (no damping)
+            print*,mu*bfield(Nc), df*C*hh1, dt, df
+        end if
         do i=2,Ngbn-1
             Jf(i) = - DC*( 2.d0*dGdb(i) - dGdb(i-1) - dGdb(i+1) )
         end do ! loop i
         
-    !    ! periodic flux BC
-    !    Jf(1)    = -DC*( 2.d0*dGdb(1)     - dGdb(2)       - dGdb(Ngbn) )
-    !    Jf(Ngbn) = -DC*( 2.d0*dGdb(Ngbn) - dGdb(Ngbn-1) - dGdb(1) )
+        ! ** periodic flux BC **
+        ! Jf(1)    = -DC*( 2.d0*dGdb(1)     - dGdb(2)       - dGdb(Ngbn) )
+        ! Jf(Ngbn) = -DC*( 2.d0*dGdb(Ngbn) - dGdb(Ngbn-1) - dGdb(1) )
 
-    !   !flux BC in periodic box if bdot=0
-    !   Jf(1)     = (2.d0*Jf(2) + Jf(Ngbn-1))/3.d0 
-    !   Jf(Ngbn) = (2.d0*Jf(Ngbn-1) + Jf(2))/3.d0
-        
-        !no flux BC
+        ! ** flux BC for open boundary **
+        ! Jf(1) = -DC*(dGdb(1) - dGdb(2))
+        ! Jf(Ngbn) = -DC*(dGdb(Ngbn) - dGdb(Ngbn-1))
+
+        ! ** no flux BC, anti-symmetric bfield **
         Jf(1) = 0.d0
         Jf(Ngbn) = 0.d0
-
-    !    ! flux BC for open boundary
-    !    Jf(1) = -DC*(dGdb(1) - dGdb(2))
-    !    Jf(Ngbn) = -DC*(dGdb(Ngbn) - dGdb(Ngbn-1))
-        
 
         ! calculate GB Burgers vectors from flux rate 
         bdmax = 0.d0
         do i=2,Ngbn-1
-            hh = og2*(2.d0*Jf(i) - Jf(i-1) - Jf(i+1))  ! new in v2.1.2
+            hh = omdx*(2.d0*Jf(i) - Jf(i-1) - Jf(i+1))  ! new in v2.1.2
             bfield(i) = bfield(i) + hh*dt
             bdot(i) = hh
             if (bdmax < abs(hh)) bdmax=abs(hh)
         end do
-        !hh = (2.d0*Jf(1) - Jf(2) - Jf(Ngbn))*Omega/gbdx 
+        ! ** periodic b-field **
+        !hh = (2.d0*Jf(1) - Jf(2) - Jf(Ngbn))*omdx
         !bfield(1) = bfield(1) + hh*dt
         !bdot(1) = hh;
         !if (bdmax < abs(hh)) bdmax=abs(hh)
-        !hh = (2.d0*Jf(Ngbn) - Jf(Ngbn-1) - Jf(1))*Omega/gbdx 
+        !hh = (2.d0*Jf(Ngbn) - Jf(Ngbn-1) - Jf(1))*omdx
         !bfield(Ngbn) = bfield(Ngbn) + hh*dt
         !bdot(Ngbn) = hh;
         !if (bdmax < abs(hh)) bdmax=abs(hh)
 
-        bfield(1) = 0.d0 ! open or periodic GB 
+        ! ** open or anti-periodic GB **
+        bfield(1) = 0.d0
         bfield(Ngbn) = 0.d0
         bdot(1) = 0.d0
         bdot(Ngbn) = 0.d0
 
         ! Write protocol output for sim_time series
-        if (mod(it,nwr)==0) then 
+        if ((screen_out).and.(mod(it,nwr)==0)) then
             ih = mod(it/nwr,nsav) + 1
             ts(ih)  = ttot
             gps(ih) = gplast
@@ -300,14 +297,13 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
                 hh2 = 0.d0
             end if
             hh = sum(bfield)/B
-            write(40,500) it, ttot*1.d-6, dt, gdpl*1.d6, hh1, gplast, tau0, &
-                bdmax, vmax, hh2, Npu, Nabs, hh
-            if (screen_out) &
-                write(*,*) "Iteration, dt, ttot(s), max(bdot), sum(bfield)", &
-                        it, dt, ttot*1.d-6, bdmax, sum(bfield)
-                !do i=1,ih5
-                !    write(*,*) pu_out(i, 1, :Npu)
-                !end do
+            !write(40,500) it, ttot*1.d-6, dt, gdpl*1.d6, hh1, gplast, tau0, &
+            !    bdmax, vmax, hh2, Npu, Nabs, hh
+            write(*,*) "Iteration, dt, ttot(s), max(bdot), sum(bfield)", &
+                    it, dt, ttot*1.d-6, bdmax, sum(bfield)
+            !do i=1,ih5
+            !    write(*,*) pu_out(i, 1, :Npu)
+            !end do
         end if
         
         ! collect sim_time series output for GB nodes
@@ -404,14 +400,8 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         globout(ih5, 12) = hh
     end if
 
-    close(40)  ! close protocol file
+    !close(40)  ! close protocol file
 
-    100 format(I4,2G14.5)
-    200 format('# System dump at iteration step',I12,'; total sim_time',G14.5)
-    210 format('# Nabs =  ',I8)
-    300 format(I8)
-    400 format(I8, 3G14.5)
-    410 format(I8, 5G14.5)
     500 format(I8, 4G14.5, G18.9,4G14.5, 2I5, G15.5)
 
 
@@ -458,6 +448,7 @@ contains
         ! set numerical parameters
         twr0 = 0.001 *tfin / maxout ! std: 20d6
         dt = dtmax*1.d-4  ! 0.05 ! initial time step (microseconds)
+        df = 0.5  ! damping factor for contribution of GB to dgdb; df=1: no damping
         nwr = niter / 100
         eps = 1.d-20
         epsmax = 1.5d-2
@@ -467,7 +458,7 @@ contains
         Nc = (Ngbn+1)/2 !center of GB
         gbdx = Dgp/(Ngbn-1) ! size of GB elements
         gbdxD2 = gbdx/D2
-        og2 = Omega/gbdx
+        omdx = Omega/gbdx
         DC = D0*delta/(R*temp*gbdx*gbdx) !D delta/ (RT gbdx**2)
         Upot = 0.d0
         do i=1,Ngbn
