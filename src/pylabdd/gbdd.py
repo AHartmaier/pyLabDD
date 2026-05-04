@@ -351,7 +351,7 @@ class GB_dislocations:
         ts = time * 1.0e-6
 
         for i in range(0, nout, dt):
-            active = np.nonzerho(positions[i, :])[0]
+            active = np.nonzero(positions[i, :])[0]
             if active.size == 0:
                 continue
             plt.plot(
