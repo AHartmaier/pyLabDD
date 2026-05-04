@@ -8,6 +8,8 @@
 ! 2026-04-24: v2.1.0: Strip HDF5 output for Python integration
 ! 2026-04-27: v2.1.1: Introduced params-vector to interface to pass material parameters
 ! 2026-04-29: v2.1.2: Updated equations for dGdb with damping factor df, inactivate PRT file
+! 2026-05-04: v2.1.3: tau0 controls initial conditions:
+!                     tau0=0: start with one absobed dis, no pileup; tau0>0: no absobed dis, pileup nucleation active
 !
 ! Author: Alexander Hartmaier
 ! Institution: Ruhr-Universitaet Bochum, ICAMS
@@ -15,7 +17,7 @@
 ! This code can be used under the terms of the GNU General Public License version 3 (GNU GPL-3.0)
 
 subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, niter, dtmax, &
-    it, Npu_max, ih5, time_out, xout, vout, pu_out, globout, screen_out)
+    it, Npu_max, ih5, Nabs, time_out, xout, vout, pu_out, globout, screen_out)
 
     implicit none
 
@@ -38,6 +40,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     integer, intent(out) :: Npu_max ! maximum number of dislocation in pile-up reached
     integer, intent(out) :: it !number of iterations
     integer, intent(out) :: ih5  ! number of outputs
+    integer, intent(out) :: Nabs ! number of absorbed dislocations
     real(8), intent(in) :: params(nparams)  ! Vector for constitutive parameters
     real(8), intent(in) :: tfin  ! final sim_time for simulation (microseconds), std: 25d6
     real(8), intent(in) :: dtmax ! 1.d3 w/o pu; 60 with pile up
@@ -59,7 +62,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     real(8) :: epsmax, edtot, cdist
     real(8) :: twr
     real(8) :: hh, hh1, hh2, hx2, hy2, gbdxD2, hc, omdx
-    integer :: Nc, Npu, Nabs
+    integer :: Nc, Npu
     integer :: nfields, nglob, maxout, nwr
     integer :: i, k, ih, iwr, j
 
@@ -84,9 +87,11 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     !    '-T' // char(int(temp)/100+48) // char(mod(int(temp),100)/10+48) // &
     !    '-d' // char(ih/1000+48) // char(mod(ih,1000)/100+48) // char(mod(ih,100)/10+48) // char(mod(ih,10)+48) //'.prt'
 
-    !start condition: one absorbed dislocation 
-    bfield(Nc) = B
-    Nabs = 1
+    !start condition if no applied stress: one absorbed dislocation
+    if (tau0 < 1.d-6) then
+        bfield(Nc) = B
+        Nabs = 1
+    end if
     ! store initial values for GB nodes in output array
     hh = 0.d0
     do i=1,Ngbn
@@ -133,12 +138,16 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     !   tau0 = mu*(hh-gplast)
         
         !dislocation nucleation criterion 
-        hh = 0.d0
-        do i=1,Npu
-            !print*, "START1", it, i, ypu(i), Npu
-            if (ypu(i) > hh) hh=ypu(i)
-        end do
-        hh = D2 ! activate if no dislocations on slip plane should be nucleated
+        !hh = 0.d0
+        !do i=1,Npu
+        !    !print*, "START1", it, i, ypu(i), Npu
+        !    if (ypu(i) > hh) hh=ypu(i)
+        !end do
+        if (tau0 < 1.d-6) then
+            hh = D2  ! avoid dislocation nucleation on slip plane
+        else
+            hh = maxval(ypu)
+        end if
         if (hh < 0.9*D2) then 
             Npu = Npu + 1
             ypu(Npu) = D2
@@ -146,14 +155,14 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             if (fdis(Npu).ge.0.d0) Npu = Npu - 1 !nucleation failed if test dislocation is pushed out
         end if 
         !print*, "START2", it, Npu
-        if (Npu.gt.maxdis) then
+        if (Npu > maxdis) then
             write(*,*) 'Npu greater maxdis'
             stop
         end if
         Npu_max = max(Npu_max, Npu)
 
         ! move dislocations 
-        if (Npu.gt.0) then 
+        if (Npu > 0) then
             call tau_GB() ! calculate force on dislocations
             vmax = 0.d0
             yrk = ypu
@@ -299,8 +308,8 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             hh = sum(bfield)/B
             !write(40,500) it, ttot*1.d-6, dt, gdpl*1.d6, hh1, gplast, tau0, &
             !    bdmax, vmax, hh2, Npu, Nabs, hh
-            write(*,*) "Iteration, dt, ttot(s), max(bdot), sum(bfield)", &
-                    it, dt, ttot*1.d-6, bdmax, sum(bfield)
+            write(*,*) "Iteration, dt, ttot(s), max(bdot), sum(bfield), Npu, Nabs, max(y)", &
+                    it, dt, ttot*1.d-6, bdmax, sum(bfield), Npu, Nabs, maxval(ypu)
             !do i=1,ih5
             !    write(*,*) pu_out(i, 1, :Npu)
             !end do
@@ -471,7 +480,7 @@ contains
             end do
         end do
         Nabs = 0 ! number of dislocations absorbed in GB
-        Npu = 0 ! number of dislocations in pile up (on slip plane), we start with 1
+        Npu = 0 ! number of dislocations in pile up (on slip plane)
         !ypu(1) = 0.9*D2
         Npu_max = Npu
 
@@ -508,7 +517,7 @@ contains
                 hfr = 4.d0*hx2*hy*(1.d0-2.d0*hc) / (hr2*hr2*hsc)
                 hh = hh + bfield(i)*sqrt(hsc)*(hfr*log(sqrt(hr2)/D2) + hy/hr2)
             end do 
-            fdis(j) = C*B*hh - tau0 
+            fdis(j) = (C*hh - tau0)*B
         end do
     end subroutine tau_GB
 

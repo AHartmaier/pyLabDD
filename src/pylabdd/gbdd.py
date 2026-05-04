@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from importlib.metadata import metadata
-
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import NDArray
 from typing import Any, TypeAlias
 from pathlib import Path
 import h5py
@@ -27,7 +25,7 @@ class GB_dislocations:
         tau0: float = 0.0,
         temp: float = 900.0,
         len_gb_seg: float = 0.1,
-        grains_size: float = 10.0,
+        grain_size: float = 10.0,
         Ngbn: int = 21,
         maxdis: int = 5000,
         maxout: int = 1000,
@@ -88,7 +86,7 @@ class GB_dislocations:
             self.tau0: float = float(tau0)  # applied stress
             self.temp: float = float(temp)  # temperature
             self.Dgp: float = float(len_gb_seg)  # length of GB-segment
-            self.D2: float = float(grains_size)  # length of pile-up
+            self.D2: float = float(grain_size)  # length of pile-up
             self.Ngbn: int = int(Ngbn)  # number of GB nodes
             self.maxdis: int = int(maxdis)  # maximum number of dislocations in pile-up
             self.maxout: int = int(maxout)  # maximum number of elements in output file
@@ -122,6 +120,7 @@ class GB_dislocations:
             self.vout = None
             self.pu_out = None
             self.globout = None
+            self.nabs: int | None = None
             self.field_data: dict[str, FloatArray] | None = None
             self.glob_data: dict[str, FloatArray] | None = None
             self.pu_dis: dict[str, FloatArray] | None = None
@@ -148,7 +147,7 @@ class GB_dislocations:
         pv = self._parameter_vector()
         npv = len(pv)
 
-        it_done, npu_max, nout, time_out, xout, vout, pu_out, globout = self.calc_gbdd(
+        it_done, npu_max, nout, nabs, time_out, xout, vout, pu_out, globout = self.calc_gbdd(
             pv,
             npv,
             self.tau0,
@@ -190,6 +189,7 @@ class GB_dislocations:
         self.it_done = int(it_done)
         self.npu_max = npu_max_i
         self.nout = nout_i
+        self.nabs = int(nabs)
 
     def _require_results(self) -> tuple[
         dict[str, FloatArray],
@@ -364,7 +364,7 @@ class GB_dislocations:
             )
 
         plt.xlabel(r"dislocation position ($\mu$m)")
-        plt.ylabel("sim_time (s)")
+        plt.ylabel("time (s)")
         plt.xlim((0.0, self.D2 * 1.05))
         if file is not None:
             plt.savefig(path + file, dpi=300)
@@ -448,6 +448,7 @@ class GB_dislocations:
             "Ngbn": self.Ngbn,
             "maxdis": self.maxdis,
             "npu_max": self.npu_max,
+            "nabs": self.nabs,
             "center_node": int((self.Ngbn + 1) / 2),
             "nfields": vout.shape[1],
             "nglob": globout.shape[1],
@@ -547,6 +548,8 @@ class GB_dislocations:
         self.it_done = metadata["it"]
         self.npu_max = metadata["npu_max"]
         self.nout = metadata["nout"]
+        if "nabs" in metadata.keys():
+            self.nabs = metadata["nabs"]
         # constitutive parameters
         self.mu = metadata["shear_modulus"]
         self.nu = metadata["poisson_ratio"]

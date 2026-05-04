@@ -89,12 +89,12 @@ class Dislocations:
 
     def __init__(
         self,
-        Nd: int,
-        Nm: int,
-        spi1: float,
-        C: float,
-        b0: float,
-        dmob: float = 1.0,
+        Nd: int,  # total number of dislocations, stored in self.Ntot
+        Nm: int,  # number of mobile dislocations, stored in self.Nmob
+        spi1: float,  # slip plane inclination angle in radians
+        C: float,  # elastic parameter
+        b0: float,  # Burgers vector norm
+        dmob: float = 1.0,  # mobility
         f0: float = 0.8,
         m: float = 7.0,
         dmax: float = 0.002,
@@ -126,8 +126,8 @@ class Dislocations:
         self.cfpk: PKForceFunction = calc_fpk
         self.cfpk_pbc: PKForceFunction = calc_fpk_pbc
 
-        self.Ntot: int = int(Nd)
-        self.Nmob: int = int(Nm)
+        self.Ntot: int = int(Nd)  # total number of dislocations
+        self.Nmob: int = int(Nm)  # number of mobile dislocations
 
         # dislocation positions
         self.xpos: FloatArray = _as_1d_float_array(xpos, length=Nd, name="xpos")
@@ -445,7 +445,8 @@ class Dislocations:
             plt.show()
 
     # calculate and plot stress field on grid
-    def plot_stress(self, ngp: int = 150) -> None:
+    def plot_stress(self, ngp: int = 150,
+                    show_arrows: bool = True) -> None:
         if ngp <= 1:
             raise ValueError(f"ngp must be larger than 1, got {ngp}.")
 
@@ -484,24 +485,25 @@ class Dislocations:
                 ax.scatter(self.xpos, self.ypos, s=30, c="yellow", marker="o")
 
         # plot arrows for mobile dislocations
-        for i in range(self.Nmob):
-            dx = float(self.dx[i])
-            dy = float(self.dy[i])
-            hh = dx * dx + dy * dy
-            if hh < self.b0:
-                dx = float(self.bx[i])
-                dy = float(self.by[i])
-            for ax in axs:
-                ax.arrow(
-                    self.xpos[i],
-                    self.ypos[i],
-                    4.0 * dx,
-                    4.0 * dy,
-                    head_width=1.5,
-                    width=0.5,
-                    head_length=2.0,
-                    color="#20ff00",
-                )
+        if show_arrows:
+            for i in range(self.Nmob):
+                dx = float(self.dx[i])
+                dy = float(self.dy[i])
+                hh = dx * dx + dy * dy
+                if hh < self.b0:
+                    dx = float(self.bx[i])
+                    dy = float(self.by[i])
+                for ax in axs:
+                    ax.arrow(
+                        self.xpos[i],
+                        self.ypos[i],
+                        4.0 * dx,
+                        4.0 * dy,
+                        head_width=1.5,
+                        width=0.5,
+                        head_length=2.0,
+                        color="#20ff00",
+                    )
         fig.tight_layout()
         plt.show()
 
