@@ -52,6 +52,7 @@ def fake_calc_gbdd(
 ):
     nout = 3
     npu_max = 2
+    nabs = 1
     it_done = 123
 
     time_out[:nout] = [0.0, 1.0, 2.0]
@@ -67,7 +68,7 @@ def fake_calc_gbdd(
     pu_out[:nout, 1, :npu_max] = 100.0
     pu_out[:nout, 2, :npu_max] = 200.0
 
-    return it_done, npu_max, nout, time_out, xout, vout, pu_out, globout
+    return it_done, npu_max, nout, nabs, time_out, xout, vout, pu_out, globout
 
 def test_run_sim_maps_fortran_output():
     gb = GB_dislocations(Ngbn=5, maxdis=4, maxout=10)
@@ -91,11 +92,11 @@ def test_run_sim_maps_fortran_output():
 
 def fake_bad_nout(*args):
     time_out, xout, vout, pu_out, globout = args[-5:]
-    return 0, 0, 999999, time_out, xout, vout, pu_out, globout
+    return 0, 0, 999999, 1, time_out, xout, vout, pu_out, globout
 
 def fake_bad_npu(*args):
     time_out, xout, vout, pu_out, globout = args[-5:]
-    return 0, 999999, 1, time_out, xout, vout, pu_out, globout
+    return 0, 999999, 1, 1, time_out, xout, vout, pu_out, globout
 
 def test_run_sim_rejects_invalid_nout():
     gb = GB_dislocations(maxout=5)

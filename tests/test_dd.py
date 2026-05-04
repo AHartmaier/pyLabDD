@@ -63,7 +63,7 @@ def calc_fpk_py(tau0: float, dsl: dd.Dislocations) -> np.ndarray:
     sigdxy += tau0
     hh1 = sigdxy * dsl.bx[: dsl.Nmob] + sigdyy * dsl.by[: dsl.Nmob]
     hh2 = sigdxx * dsl.bx[: dsl.Nmob] + sigdxy * dsl.by[: dsl.Nmob]
-    return np.array([hh1, -hh2])
+    return np.array([hh1, hh2])*dsl.b0
 
 
 @pytest.fixture
