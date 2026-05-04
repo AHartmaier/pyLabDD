@@ -10,6 +10,7 @@
 ! 2026-04-29: v2.1.2: Updated equations for dGdb with damping factor df, inactivate PRT file
 ! 2026-05-04: v2.1.3: tau0 controls initial conditions:
 !                     tau0=0: start with one absobed dis, no pileup; tau0>0: no absobed dis, pileup nucleation active
+!                     added Nabs to return values; fixed bug in tau_GB wrt tau0
 !
 ! Author: Alexander Hartmaier
 ! Institution: Ruhr-Universitaet Bochum, ICAMS
@@ -501,10 +502,8 @@ contains
             hh = 0.d0
             hy = ypu(j)
             hy2 = hy*hy
-            do i=1,j-1 
-                hh = hh + B/(hy-ypu(i))
-            end do 
-            do i=j+1,Npu 
+            do i=1,Npu
+                if (j==i) cycle
                 hh = hh + B/(hy-ypu(i))
             end do
             do i=1,Ngbn 

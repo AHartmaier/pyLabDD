@@ -207,12 +207,16 @@ class Dislocations:
         self._validate_mobile_count(Nm_eff)
 
         if self.bc == "pbc":
-            fpk = self.cfpk_pbc(
-                xp_arr, yp_arr, self.bx, self.by, tau0_eff, lx_eff, ly_eff, Nm_eff, self.Ntot
+            fslf = self.cfpk_pbc(
+                 xp_arr, yp_arr, self.bx, self.by, 0.0, lx_eff, ly_eff, Nm_eff, self.Ntot
             )
         else:
-            fpk = self.cfpk(xp_arr, yp_arr, self.bx, self.by, tau0_eff, Nm_eff, self.Ntot)
-        return self.C * np.asarray(fpk, dtype=np.float64)
+            #fpk = self.cfpk(xp_arr, yp_arr, self.bx, self.by, tau0_eff, Nm_eff, self.Ntot)
+            fslf = self.cfpk(xp_arr, yp_arr, self.bx, self.by, 0.0, Nm_eff, self.Ntot)
+        fpk = (self.C * np.asarray(fslf, dtype=np.float64) -
+              tau0_eff*np.asarray([self.bx[:Nm_eff], self.by[:Nm_eff]], dtype=np.float64)) * self.b0
+
+        return fpk
 
     # initialize random dislocation positions
     def positions(self, stol: float = 0.25, *, max_attempts: int = 100_000) -> None:

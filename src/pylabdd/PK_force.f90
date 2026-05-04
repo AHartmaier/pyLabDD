@@ -72,7 +72,7 @@ do j=1, Nmob
      end do   !loop over m
    end do  ! loop over i
    FPK(1,j) = 0.5*(h12*bx(j) + h22*by(j))
-   FPK(2,j) = -0.5*(h11*bx(j) + h12*by(j))
+   FPK(2,j) = 0.5*(h11*bx(j) + h12*by(j))  ! removed "-"
 end do   ! loop over j
 end subroutine calc_fpk_pbc
 
@@ -113,6 +113,6 @@ do i=1, Nmob
         h12 = h12 + hby*y*(hy - hx)/hh
     end do
     FPK(1,i) = h12*bx(i) + h22*by(i)
-    FPK(2,i) = -(h11*bx(i) + h12*by(i))
+    FPK(2,i) = (h11*bx(i) + h12*by(i))  ! removed "-"
 end do
 end subroutine calc_fpk
