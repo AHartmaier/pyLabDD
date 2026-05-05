@@ -75,6 +75,7 @@ class GB_dislocations:
             "Qact",
             "drag",
             "Dif_gb",
+            "fcrit",
         )
 
         self.dis_names: list[str] = ["position", "force", "velocity"]
@@ -102,6 +103,7 @@ class GB_dislocations:
             self.Qact: float = 57.e3  # activation energy for GB diffusion (J/mol)
             self.drag: float = 500.  # dislocation drag coefficient; mobility = B / drag
             self.Dif_gb: float = 10.  # GB diffusion coeff (micron^2/micro s)
+            self.fcrit: float = 1.e-2  # critical force for dislocation nucleation (MPa.micron)
 
             if self.Ngbn <= 0:
                 raise ValueError("Ngbn must be positive.")
@@ -279,6 +281,7 @@ class GB_dislocations:
     def plot_field(self, 
                    names: NameOrNames = None, 
                    nplot: int = 10,
+                   last_frame: int | None = None,
                    file: str | None = None,
                    path: str | None = None) -> None:
         """Plot selected field data over the grain boundary."""
@@ -288,6 +291,10 @@ class GB_dislocations:
             return
         if nplot <= 0:
             raise ValueError("nplot must be positive.")
+        if last_frame is None:
+            last_frame = nout
+        if last_frame < 0 or last_frame > nout:
+            raise ValueError("last_frame must be between 0 and nout.")
 
         missing = [name for name in selected_names if name not in field_data]
         if missing:
@@ -298,7 +305,7 @@ class GB_dislocations:
             elif path[-1] != "/":
                 path += "/"
 
-        dt = max(1, nout // nplot)
+        dt = max(1, last_frame // nplot)
         ts = time * 1.0e-6
 
         for field in selected_names:
@@ -310,7 +317,7 @@ class GB_dislocations:
                 ylab = r"$b$ ($\mu$m)"
             else:
                 ylab = field
-            for i in range(0, nout, dt):
+            for i in range(0, last_frame, dt):
                 yv = field_data[field][i, :].copy()
                 if field == "displacement":
                     yv -= np.mean(yv)
@@ -319,11 +326,11 @@ class GB_dislocations:
                     yv,
                     marker="none",
                     linestyle="-",
-                    color=plt.cm.viridis(i / max(1, nout)),
+                    color=plt.cm.viridis(i / max(1, last_frame)),
                     label=f"t={int(ts[i])}" + r"$\cdot$10$^3$ s",
                     #label=f"t={ts[i]:.1f} s",
                 )
-            plt.legend()
+            plt.legend(loc='upper left')  # bbox_to_anchor=(1.04, 1) to place legend outside
             plt.ylabel(ylab)
             plt.xlabel(r"x ($\mu$m)")
             if file is not None:
@@ -332,6 +339,7 @@ class GB_dislocations:
 
     def plot_pile_up(self, 
                      nplot: int = 10,
+                     last_frame: int | None = None,
                      file: str | None = None,
                      path: str | None = None) -> None:
         """Plot pile-up dislocation positions as a function of sim_time."""
@@ -340,6 +348,10 @@ class GB_dislocations:
             raise ValueError("nplot must be positive.")
         if npu_max <= 0:
             return
+        if last_frame is None:
+            last_frame = nout
+        if last_frame < 0 or last_frame > nout:
+            raise ValueError("last_frame must be between 0 and nout.")
         if file is not None:
             if path is None:
                 path = "./"
@@ -347,10 +359,10 @@ class GB_dislocations:
                 path += "/"
 
         positions = pu_dis["position"]
-        dt = max(1, nout // nplot)
+        dt = max(1, last_frame // nplot)
         ts = time * 1.0e-6
 
-        for i in range(0, nout, dt):
+        for i in range(0, last_frame, dt):
             active = np.nonzero(positions[i, :])[0]
             if active.size == 0:
                 continue
@@ -359,7 +371,7 @@ class GB_dislocations:
                 np.full(active.size, ts[i]),
                 marker="o",
                 linestyle="none",
-                color=plt.cm.viridis(i / max(1, nout)),
+                color=plt.cm.viridis(i / max(1, last_frame)),
                 label=f"pile-up@t={ts[i]:.2f}s",
             )
 
@@ -436,6 +448,7 @@ class GB_dislocations:
             "gb_thickness": self.delta,
             "activation_energy": self.Qact,
             "diffusion_coeff": self.Dif_gb,
+            "nucleation_barrier": self.fcrit,
             "tau0": self.tau0,
             "temperature": self.temp,
             "grain_size": self.D2,
@@ -558,6 +571,10 @@ class GB_dislocations:
         self.Qact = metadata["activation_energy"]
         self.drag = metadata["dislocation_drag"]
         self.Dif_gb = metadata["diffusion_coeff"]
+        if "nucleation_barrier" in metadata.keys():
+            self.fcrit = metadata["nucleation_barrier"]
+        else:
+            self.fcrit = None
         # set convenience dicts
         self.field_data = {
             name: self.vout[:, i, :].copy()

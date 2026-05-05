@@ -31,7 +31,8 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     integer, parameter :: IDX_QACT   = 5
     integer, parameter :: IDX_DRAG   = 6
     integer, parameter :: IDX_DIFGB  = 7
-    integer, parameter :: N_GBDD_PARAMS = 7
+    integer, parameter :: IDX_FCRIT  = 8
+    integer, parameter :: N_GBDD_PARAMS = 8
 
     logical, intent(in) :: screen_out  ! print output on screen
     integer, intent(in) :: nparams  ! number of constitutive parameters
@@ -53,14 +54,14 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     real(8), intent(out) :: pu_out(:, :, :), globout(:, :)
     real(8) :: bfield(Ngbn), ypu(maxdis), fdis(maxdis), vdis(maxdis)
     real(8) :: M, C, DC, B, mu, nu, Omega, pi, gbdx, drag
-    real(8) :: R, delta, Dif_gb, D0, Qact, df
+    real(8) :: R, delta, Dif_gb, D0, Qact, df, fcrit
     real(8) :: twr0  ! sim_time interval (microseconds) for sim_time series output, std: 20d6
     real(8) :: frk(maxdis), yrk(maxdis), Jf(Ngbn), bdot(Ngbn)
     real(8) :: dGdb(Ngbn), Upot(Ngbn, Ngbn)
     real(8) :: ts(nsav), gps(nsav)
     real(8) :: dt, ttot, eps
     real(8) :: gdpl, gplast, vmax, bdmax
-    real(8) :: epsmax, edtot, cdist
+    real(8) :: epsmax, edtot, cdist, dsrc
     real(8) :: twr
     real(8) :: hh, hh1, hh2, hx2, hy2, gbdxD2, hc, omdx
     integer :: Nc, Npu
@@ -147,13 +148,13 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         if (tau0 < 1.d-6) then
             hh = D2  ! avoid dislocation nucleation on slip plane
         else
-            hh = maxval(ypu)
+            hh = maxval(ypu(:Npu))
         end if
-        if (hh < 0.9*D2) then 
+        if (hh < dsrc) then
             Npu = Npu + 1
             ypu(Npu) = D2
             call tau_GB() ! calculate force on dislocations
-            if (fdis(Npu).ge.0.d0) Npu = Npu - 1 !nucleation failed if test dislocation is pushed out
+            if (fdis(Npu) > -fcrit) Npu = Npu - 1 !nucleation failed if test dislocation is pushed out
         end if 
         !print*, "START2", it, Npu
         if (Npu > maxdis) then
@@ -218,13 +219,13 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
                 ih = i
             end if
         end do
-        if (hh < cdist) then 
+        if (hh < cdist) then
+            do i=ih,Npu
+                ypu(i) = ypu(i+1)
+            end do
             Npu = Npu-1
             Nabs = Nabs+1
             bfield(Nc) = bfield(Nc) + B
-            do i=ih,Npu
-                ypu(i) = ypu(i+1) 
-            end do
         end if 
 
         ! calculate diffusion flux in GB 
@@ -310,7 +311,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             !write(40,500) it, ttot*1.d-6, dt, gdpl*1.d6, hh1, gplast, tau0, &
             !    bdmax, vmax, hh2, Npu, Nabs, hh
             write(*,*) "Iteration, dt, ttot(s), max(bdot), sum(bfield), Npu, Nabs, max(y)", &
-                    it, dt, ttot*1.d-6, bdmax, sum(bfield), Npu, Nabs, maxval(ypu)
+                    it, dt, ttot*1.d-6, bdmax, sum(bfield), Npu, Nabs, maxval(ypu(:Npu))
             !do i=1,ih5
             !    write(*,*) pu_out(i, 1, :Npu)
             !end do
@@ -337,7 +338,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
                 hh = hh + bfield(i)/B
             end do
             iwr = iwr + 1
-            twr = twr + twr0*iwr*iwr
+            twr = twr + twr0 !*iwr*iwr
             ! collect dislocation positions
             pu_out(ih5, 1, :Npu) = ypu(:Npu)
             pu_out(ih5, 2, :Npu) = fdis(:Npu)
@@ -448,15 +449,17 @@ contains
         Qact  = params(IDX_QACT)  !Qact = 57.d3 ! activation energy for GB diffusion (J/mol)
         drag  = params(IDX_DRAG)  ! 500.d0
         Dif_gb = params(IDX_DIFGB)  !Dif_gb = 1.d1 ! GB diffusion coeff (micron^2/micro s)
+        fcrit = params(IDX_FCRIT)  ! critical force for dislocation nucleation
         pi = 4.d0*datan(1.d0)
         C = mu/(2*pi*(1-nu)) ! is A in paper
         M = B/drag ! dislocation mobility B/(microsecond.MPa)
         R = 8.31446d0 ! gas constant (J/molK)
         D0 = Dif_gb*exp(-Qact/(R*temp)) ! GB diffusion coefficient
         Omega = B*B !atomic volume
+        dsrc = D2 - 100*B ! 0.9*D2  ! distance require for dislocation source
 
         ! set numerical parameters
-        twr0 = 0.001 *tfin / maxout ! std: 20d6
+        twr0 = tfin / maxout ! for cubic time scale: apply maxout**2
         dt = dtmax*1.d-4  ! 0.05 ! initial time step (microseconds)
         df = 0.5  ! damping factor for contribution of GB to dgdb; df=1: no damping
         nwr = niter / 100
