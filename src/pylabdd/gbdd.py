@@ -259,6 +259,10 @@ class GB_dislocations:
                 gv *= 1.0e6
                 ylabel = r"$\dot{b}_{max}$ (1/s)"
                 field_semi_log = True
+            elif field == "plast_slip_rate":
+                gv *= 1.0e6
+                ylabel = r"$\dot{\gamma}_{pl}$ (1/s)"
+                field_semi_log = True
 
             plot_func = plt.semilogy if field_semi_log else plt.plot
             plot_func(
@@ -310,11 +314,11 @@ class GB_dislocations:
 
         for field in selected_names:
             if field == "displacement":
-                ylab = r"$u$ ($\mu$m)"
+                ylab = r"$u \,/\, B$"
             elif field == "flux":
                 ylab = r"$J$ (1/s)"
             elif field == "bfield":
-                ylab = r"$b$ ($\mu$m)"
+                ylab = r"$b\,/\, B$"
             else:
                 ylab = field
             for i in range(0, last_frame, dt):
