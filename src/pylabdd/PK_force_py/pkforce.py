@@ -102,12 +102,12 @@ def calc_fpk(xpos, ypos, bx, by, tau0, Nmob, N):
             hh = hh * hh
             hbx = bx[j]
             hby = by[j]
-            h11 = h11 - hbx * y * (3.0 * hx + hy) / hh
-            h11 = h11 + hby * x * (hy - hx) / hh
-            h22 = h22 + hbx * y * (hx - hy) / hh
-            h22 = h22 - hby * x * (3.0 * hy + hx) / hh
-            h12 = h12 + hbx * x * (hx - hy) / hh
-            h12 = h12 + hby * y * (hy - hx) / hh
+            h11 -= hbx * y * (3.0 * hx + hy) / hh
+            h11 -= hby * x * (hy - hx) / hh
+            h22 += hbx * y * (hx - hy) / hh
+            h22 += hby * x * (3.0 * hy + hx) / hh
+            h12 += hbx * x * (hx - hy) / hh
+            h12 -= hby * y * (hy - hx) / hh
 
         FPK[0, i] = h12 * bx[i] + h22 * by[i]
         FPK[1, i] = -(h11 * bx[i] + h12 * by[i])
