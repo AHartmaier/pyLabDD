@@ -213,7 +213,7 @@ class Dislocations:
         else:
             #fpk = self.cfpk(xp_arr, yp_arr, self.bx, self.by, tau0_eff, Nm_eff, self.Ntot)
             fslf = self.cfpk(xp_arr, yp_arr, self.bx, self.by, 0.0, Nm_eff, self.Ntot)
-        fpk = (self.C * np.asarray(fslf, dtype=np.float64) -
+        fpk = (self.C * np.asarray(fslf, dtype=np.float64) +
               tau0_eff*np.asarray([self.bx[:Nm_eff], self.by[:Nm_eff]], dtype=np.float64)) * self.b0
 
         return fpk
@@ -462,11 +462,11 @@ class Dislocations:
         s12 = np.zeros((ngp, ngp), dtype=np.float64)
         for i in range(self.Ntot):
             s11 += self.bx[i] * self.sig_xx(XP - self.xpos[i], YP - self.ypos[i])
-            s11 += self.by[i] * self.sig_yy(YP - self.ypos[i], XP - self.xpos[i])
+            s11 -= self.by[i] * self.sig_yy(YP - self.ypos[i], XP - self.xpos[i])
             s22 += self.bx[i] * self.sig_yy(XP - self.xpos[i], YP - self.ypos[i])
-            s22 += self.by[i] * self.sig_xx(YP - self.ypos[i], XP - self.xpos[i])
+            s22 -= self.by[i] * self.sig_xx(YP - self.ypos[i], XP - self.xpos[i])
             s12 += self.bx[i] * self.sig_xy(XP - self.xpos[i], YP - self.ypos[i])
-            s12 += self.by[i] * self.sig_xy(YP - self.ypos[i], XP - self.xpos[i])
+            s12 -= self.by[i] * self.sig_xy(YP - self.ypos[i], XP - self.xpos[i])
 
         extent = (0.0, self.lx, 0.0, self.ly)
         fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(20, 6))

@@ -90,7 +90,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     !    '-d' // char(ih/1000+48) // char(mod(ih,1000)/100+48) // char(mod(ih,100)/10+48) // char(mod(ih,10)+48) //'.prt'
 
     !start condition if no applied stress: one absorbed dislocation
-    if (tau0 < 1.d-6) then
+    if (abs(tau0) < 1.d-6) then
         bfield(Nc) = B
         Nabs = 1
     end if
@@ -145,7 +145,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         !    !print*, "START1", it, i, ypu(i), Npu
         !    if (ypu(i) > hh) hh=ypu(i)
         !end do
-        if (tau0 < 1.d-6) then
+        if (abs(tau0) < 1.d-6) then
             hh = D2  ! avoid dislocation nucleation on slip plane
         else
             hh = maxval(ypu(:Npu))
