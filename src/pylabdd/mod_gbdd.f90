@@ -510,14 +510,15 @@ contains
                 hh = hh + B/(hy-ypu(i))
             end do
             do i=1,Ngbn 
-                hx = (i-Nc)*gbdx
-                hx2 = hx*hx
-                hc = hy2/(hx2 + hy2)   ! new formulation in v1.1.0
-                hr2 = hx2 + hy2
-                !print*, 'TAU', j, i, hx, hy, hc, hr2
-                hsc = 1.d0 + 4.d0*hc - 4.d0*hc*hc
-                hfr = 4.d0*hx2*hy*(1.d0-2.d0*hc) / (hr2*hr2*hsc)
-                hh = hh + bfield(i)*sqrt(hsc)*(hfr*log(sqrt(hr2)/D2) + hy/hr2)
+                hx = abs(i-Nc)*gbdx
+                !hx2 = hx*hx
+                !hc = hy2/(hx2 + hy2)   ! new formulation in v1.1.0
+                !hr2 = hx2 + hy2
+                !!print*, 'TAU', j, i, hx, hy, hc, hr2
+                !hsc = 1.d0 + 4.d0*hc - 4.d0*hc*hc
+                !hfr = 4.d0*hx2*hy*(1.d0-2.d0*hc) / (hr2*hr2*hsc)
+                !hh = hh + bfield(i)*sqrt(hsc)*(hfr*log(sqrt(hr2)/D2) + hy/hr2)
+                hh = hh + bfield(i)/(hy + hx)
             end do 
             fdis(j) = (C*hh - tau0)*B
         end do
