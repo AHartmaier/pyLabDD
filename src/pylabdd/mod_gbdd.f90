@@ -11,6 +11,7 @@
 ! 2026-05-04: v2.1.3: tau0 controls initial conditions:
 !                     tau0=0: start with one absobed dis, no pileup; tau0>0: no absobed dis, pileup nucleation active
 !                     added Nabs to return values; fixed bug in tau_GB wrt tau0
+! 2026-05-07: v2.2.0: Modified pile-up GB interaction terms
 !
 ! Author: Alexander Hartmaier
 ! Institution: Ruhr-Universitaet Bochum, ICAMS
@@ -57,7 +58,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     real(8) :: R, delta, Dif_gb, D0, Qact, df, fcrit
     real(8) :: twr0  ! sim_time interval (microseconds) for sim_time series output, std: 20d6
     real(8) :: frk(maxdis), yrk(maxdis), Jf(Ngbn), bdot(Ngbn)
-    real(8) :: dGdb(Ngbn), Upot(Ngbn, Ngbn)
+    real(8) :: dGdb(Ngbn), xpabs(Ngbn), Upot(Ngbn, Ngbn)
     real(8) :: ts(nsav), gps(nsav)
     real(8) :: dt, ttot, eps
     real(8) :: gdpl, gplast, vmax, bdmax
@@ -165,7 +166,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
 
         ! move dislocations 
         if (Npu > 0) then
-            call tau_GB() ! calculate force on dislocations
+            !call tau_GB() ! calculate force on dislocations
             vmax = 0.d0
             yrk = ypu
             frk = fdis
@@ -178,7 +179,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             do i=1,Npu
                 hh = M*fdis(i)
                 vdis(i) = hh
-                if (abs(hh).gt.vmax) vmax = abs(hh)
+                if (abs(hh) > vmax) vmax = abs(hh)
                 !print*, "VDIS1", it, i, fdis(i), vdis(i), Npu
             end do
                 
@@ -197,6 +198,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
                 ypu(i) = ypu(i) + vdis(i)*dt
                 hh = hh + ypu(i)
             end do
+            call tau_GB()  ! uodate fdis with new positions
             hh = (Npu*D2 - hh + D2*Nabs)*B/(D2*Dgp)
             gdpl = (hh-gplast)/dt
             gplast = hh
@@ -241,13 +243,14 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             end do
             ! contribution of pile-up/GB dis interaction: V(x_i, y_j)
             do k=1,Npu
-                hy2 = ypu(k)
-                hy2 = hy2*hy2 
-                !print *, "HERE",it, k, ypu(k), hy2
-                !hh2 = hh2 + hx2/(hx2 + hy2) + log(sqrt(hx2+hy2)/B); ! old version, v1.0.0
-                hh = sqrt(hx2+hy2)/D2
-                hc = hy2 / (hx2 + hy2)
-                hh2 = hh2 + log(hh) * sqrt(1.d0 + 4.d0*hc - 4.d0*hc*hc)  ! new version, v1.1.0
+                !hy2 = ypu(k)
+                !hy2 = hy2*hy2
+                !!print *, "HERE",it, k, ypu(k), hy2
+                !!hh2 = hh2 + hx2/(hx2 + hy2) + log(sqrt(hx2+hy2)/B); ! old version, v1.0.0
+                !hh = sqrt(hx2+hy2)/D2
+                !hc = hy2 / (hx2 + hy2)
+                !hh2 = hh2 + log(hh) * sqrt(1.d0 + 4.d0*hc - 4.d0*hc*hc)  ! new version, v1.1.0
+                hh2 = hh2 + log((ypu(k)+xpabs(i))/B)  ! new version, v2.2.0
             end do
             dGdb(i) = mu*bfield(i) - df*C*hh1 - C*B*hh2  ! mu*bfield(i) ! new in v2.1.2
         end do
@@ -476,6 +479,7 @@ contains
         Upot = 0.d0
         do i=1,Ngbn
             xout(i) = (i-Nc)*gbdx
+            xpabs(i) = abs(xout(i))
             do k=1, i-1
                 Upot(i, k) = log((i-k)*gbdxD2)
             end do
@@ -504,13 +508,13 @@ contains
         do j=1,Npu 
             hh = 0.d0
             hy = ypu(j)
-            hy2 = hy*hy
+            !hy2 = hy*hy
             do i=1,Npu
                 if (j==i) cycle
                 hh = hh + B/(hy-ypu(i))
             end do
             do i=1,Ngbn 
-                hx = abs(i-Nc)*gbdx
+                !hx = abs(i-Nc)*gbdx
                 !hx2 = hx*hx
                 !hc = hy2/(hx2 + hy2)   ! new formulation in v1.1.0
                 !hr2 = hx2 + hy2
@@ -518,7 +522,7 @@ contains
                 !hsc = 1.d0 + 4.d0*hc - 4.d0*hc*hc
                 !hfr = 4.d0*hx2*hy*(1.d0-2.d0*hc) / (hr2*hr2*hsc)
                 !hh = hh + bfield(i)*sqrt(hsc)*(hfr*log(sqrt(hr2)/D2) + hy/hr2)
-                hh = hh + bfield(i)/(hy + hx)
+                hh = hh + bfield(i)/(hy + xpabs(i))  ! new in v2.2.0
             end do 
             fdis(j) = (C*hh - tau0)*B
         end do
