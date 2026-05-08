@@ -236,6 +236,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             hh2 = 0.
             !hx2 = (i-Nc)*gbdx
             !hx2 = hx2*hx2
+            hx2 = xpos(i)*xpos(i)
             ! contribution of GB elastic field: U(x_i, x_j)
             do k=1,Ngbn
                hh1 = hh1 + bfield(k)*Upot(i,k)  ! Upot(i,i) = 0
@@ -243,14 +244,15 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             end do
             ! contribution of pile-up/GB dis interaction: V(x_i, y_j)
             do k=1,Npu
-                !hy2 = ypu(k)
-                !hy2 = hy2*hy2
+                hy2 = ypu(k)
+                hy2 = hy2*hy2
                 !!print *, "HERE",it, k, ypu(k), hy2
                 !!hh2 = hh2 + hx2/(hx2 + hy2) + log(sqrt(hx2+hy2)/B); ! old version, v1.0.0
                 !hh = sqrt(hx2+hy2)/D2
                 !hc = hy2 / (hx2 + hy2)
                 !hh2 = hh2 + log(hh) * sqrt(1.d0 + 4.d0*hc - 4.d0*hc*hc)  ! new version, v1.1.0
-                hh2 = hh2 + log(sqrt(ypu(k)*ypu(k) + xpos(i)*xpos(i))/D2)  ! new version, v2.2.0
+                hc = hx2 + hy2
+                hh2 = hh2 + 0.5*log(hc/D2) + hx2/hc  ! new version, v2.2.0
             end do
             dGdb(i) = mu*bfield(i) - df*C*hh1 - C*B*hh2  ! mu*bfield(i) ! new in v2.1.2
         end do
@@ -506,7 +508,7 @@ contains
         do j=1,Npu 
             hh = 0.d0
             hy = ypu(j)
-            !hy2 = hy*hy
+            hy2 = hy*hy
             do i=1,Npu
                 if (j==i) cycle
                 hh = hh + B/(hy-ypu(i))
@@ -520,7 +522,10 @@ contains
                 !hsc = 1.d0 + 4.d0*hc - 4.d0*hc*hc
                 !hfr = 4.d0*hx2*hy*(1.d0-2.d0*hc) / (hr2*hr2*hsc)
                 !hh = hh + bfield(i)*sqrt(hsc)*(hfr*log(sqrt(hr2)/D2) + hy/hr2)
-                hh = hh + bfield(i)/sqrt(hy*hy + xpos(i)*xpos(i))  ! new in v2.2.0
+                hx = xpos(i)
+                hx2 = hx*hx
+                hr2 = hx2 + hy2
+                hh = hh + bfield(i)*hy*(hy2 - hx2)/(hr2*hr2)  ! new in v2.2.0
             end do 
             fdis(j) = (C*hh - tau0)*B
         end do
