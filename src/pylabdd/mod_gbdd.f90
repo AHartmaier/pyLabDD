@@ -19,7 +19,7 @@
 ! This code can be used under the terms of the GNU General Public License version 3 (GNU GPL-3.0)
 
 subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, niter, dtmax, &
-    it, Npu_max, ih5, Nabs, time_out, xout, vout, pu_out, globout, screen_out)
+    it, Npu_max, ih5, Nabs, time, xpos, vout, pu_out, globout, screen_out)
 
     implicit none
 
@@ -51,27 +51,27 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     real(8), intent(in) :: Dgp   ! Length of GB segment considered (micron); size 0.005
     real(8), intent(in) :: tau0  ! applied shear stress (MPa) 
     real(8), intent(in) :: temp  ! temperature
-    real(8), intent(out) :: vout(:, :, :), time_out(:), xout(:)
+    real(8), intent(out) :: vout(:, :, :), time(:), xpos(:)
     real(8), intent(out) :: pu_out(:, :, :), globout(:, :)
     real(8) :: bfield(Ngbn), ypu(maxdis), fdis(maxdis), vdis(maxdis)
     real(8) :: M, C, DC, B, mu, nu, Omega, pi, gbdx, drag
     real(8) :: R, delta, Dif_gb, D0, Qact, df, fcrit
     real(8) :: twr0  ! sim_time interval (microseconds) for sim_time series output, std: 20d6
     real(8) :: frk(maxdis), yrk(maxdis), Jf(Ngbn), bdot(Ngbn)
-    real(8) :: dGdb(Ngbn), xpabs(Ngbn), Upot(Ngbn, Ngbn)
+    real(8) :: dGdb(Ngbn), Upot(Ngbn, Ngbn)
     real(8) :: ts(nsav), gps(nsav)
     real(8) :: dt, ttot, eps
     real(8) :: gdpl, gplast, vmax, bdmax
     real(8) :: epsmax, edtot, cdist, dsrc
     real(8) :: twr
-    real(8) :: hh, hh1, hh2, hx2, hy2, gbdxD2, hc, omdx
+    real(8) :: hh, hh1, hh2, hx2, hy2, hc, omdx
     integer :: Nc, Npu
     integer :: nfields, nglob, maxout, nwr
     integer :: i, k, ih, iwr, j
 
     !character (len=24) pname
 
-    maxout = size(time_out)
+    maxout = size(time)
     nfields = size(vout, 2)
     nglob = size(globout, 2)
 
@@ -234,8 +234,8 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         do i=1,Ngbn 
             hh1 = 0.
             hh2 = 0.
-            hx2 = (i-Nc)*gbdx
-            hx2 = hx2*hx2
+            !hx2 = (i-Nc)*gbdx
+            !hx2 = hx2*hx2
             ! contribution of GB elastic field: U(x_i, x_j)
             do k=1,Ngbn
                hh1 = hh1 + bfield(k)*Upot(i,k)  ! Upot(i,i) = 0
@@ -250,7 +250,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
                 !hh = sqrt(hx2+hy2)/D2
                 !hc = hy2 / (hx2 + hy2)
                 !hh2 = hh2 + log(hh) * sqrt(1.d0 + 4.d0*hc - 4.d0*hc*hc)  ! new version, v1.1.0
-                hh2 = hh2 + log((ypu(k)+xpabs(i))/B)  ! new version, v2.2.0
+                hh2 = hh2 + log(sqrt(ypu(k)*ypu(k) + xpos(i)*xpos(i))/D2)  ! new version, v2.2.0
             end do
             dGdb(i) = mu*bfield(i) - df*C*hh1 - C*B*hh2  ! mu*bfield(i) ! new in v2.1.2
         end do
@@ -329,7 +329,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             else
                 ih5 = iwr
             end if
-            time_out(ih5) = ttot
+            time(ih5) = ttot
 
             hh = 0.d0
             do i=1,Ngbn
@@ -378,7 +378,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     !write final output 
     if (iwr<maxout) then
         ih5 = iwr
-        time_out(ih5) = ttot
+        time(ih5) = ttot
         hh = 0.d0
         do i=1,Ngbn 
             vout(ih5,1,i) = Jf(i)
@@ -425,7 +425,7 @@ contains
         integer :: i, k
 
         ! initialize fields
-        time_out = 0.d0
+        time = 0.d0
         pu_out = 0.d0
         globout = 0.d0
         vout = 0.d0
@@ -473,18 +473,16 @@ contains
         twr = twr0    ! first write sim_time for sim_time series output
         Nc = (Ngbn+1)/2 !center of GB
         gbdx = Dgp/(Ngbn-1) ! size of GB elements
-        gbdxD2 = gbdx/D2
         omdx = Omega/gbdx
         DC = D0*delta/(R*temp*gbdx*gbdx) !D delta/ (RT gbdx**2)
         Upot = 0.d0
         do i=1,Ngbn
-            xout(i) = (i-Nc)*gbdx
-            xpabs(i) = abs(xout(i))
+            xpos(i) = (i-Nc)*gbdx
             do k=1, i-1
-                Upot(i, k) = log((i-k)*gbdxD2)
+                Upot(i, k) = log((i-k)*gbdx/D2)
             end do
             do k=i+1, Ngbn
-                Upot(i, k) = log((k-i)*gbdxD2)
+                Upot(i, k) = log((k-i)*gbdx/D2)
             end do
         end do
         Nabs = 0 ! number of dislocations absorbed in GB
@@ -522,7 +520,7 @@ contains
                 !hsc = 1.d0 + 4.d0*hc - 4.d0*hc*hc
                 !hfr = 4.d0*hx2*hy*(1.d0-2.d0*hc) / (hr2*hr2*hsc)
                 !hh = hh + bfield(i)*sqrt(hsc)*(hfr*log(sqrt(hr2)/D2) + hy/hr2)
-                hh = hh + bfield(i)/(hy + xpabs(i))  ! new in v2.2.0
+                hh = hh + bfield(i)/sqrt(hy*hy + xpos(i)*xpos(i))  ! new in v2.2.0
             end do 
             fdis(j) = (C*hh - tau0)*B
         end do
