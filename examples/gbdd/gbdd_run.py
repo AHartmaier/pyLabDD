@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from pylabdd import GB_dislocations
 import pylabdd as dd
 
-temp = 500.0
+temp = 900.0
 tau0 = 150.0
 lgb = 0.1
 grain_size = 1.0

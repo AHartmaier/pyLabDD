@@ -12,6 +12,7 @@
 !                     tau0=0: start with one absobed dis, no pileup; tau0>0: no absobed dis, pileup nucleation active
 !                     added Nabs to return values; fixed bug in tau_GB wrt tau0
 ! 2026-05-07: v2.2.0: Modified pile-up GB interaction terms
+! 2026-05-09: v2.2.1: Automatic selection and truncation of output times
 !
 ! Author: Alexander Hartmaier
 ! Institution: Ruhr-Universitaet Bochum, ICAMS
@@ -19,12 +20,11 @@
 ! This code can be used under the terms of the GNU General Public License version 3 (GNU GPL-3.0)
 
 subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, niter, dtmax, &
-    it, Npu_max, ih5, Nabs, time, xpos, vout, pu_out, globout, screen_out)
+    it, Npu_max, nout, Nabs, time, xpos, vout, pu_out, globout, screen_out)
 
     implicit none
 
     integer, parameter :: name_len = 16
-    integer, parameter :: nsav = 200
     integer, parameter :: IDX_MU     = 1
     integer, parameter :: IDX_NU     = 2
     integer, parameter :: IDX_B      = 3
@@ -35,14 +35,14 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     integer, parameter :: IDX_FCRIT  = 8
     integer, parameter :: N_GBDD_PARAMS = 8
 
-    logical, intent(in) :: screen_out  ! print output on screen
+    logical, intent(in) :: screen_out  ! write output on screen
     integer, intent(in) :: nparams  ! number of constitutive parameters
     integer, intent(in) :: Ngbn    ! number of gain boundary nodes, should be odd to have a center node
     integer, intent(in) :: niter   ! maximum number of iteration steps
     integer, intent(in) :: maxdis  ! maximum number of dislocations in pile-up
     integer, intent(out) :: Npu_max ! maximum number of dislocation in pile-up reached
     integer, intent(out) :: it !number of iterations
-    integer, intent(out) :: ih5  ! number of outputs
+    integer, intent(out) :: nout  ! number of outputs
     integer, intent(out) :: Nabs ! number of absorbed dislocations
     real(8), intent(in) :: params(nparams)  ! Vector for constitutive parameters
     real(8), intent(in) :: tfin  ! final sim_time for simulation (microseconds), std: 25d6
@@ -56,25 +56,24 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     real(8) :: bfield(Ngbn), ypu(maxdis), fdis(maxdis), vdis(maxdis)
     real(8) :: M, C, DC, B, mu, nu, Omega, pi, gbdx, drag
     real(8) :: R, delta, Dif_gb, D0, Qact, df, fcrit
-    real(8) :: twr0  ! sim_time interval (microseconds) for sim_time series output, std: 20d6
     real(8) :: frk(maxdis), yrk(maxdis), Jf(Ngbn), bdot(Ngbn)
     real(8) :: dGdb(Ngbn), Upot(Ngbn, Ngbn)
-    real(8) :: ts(nsav), gps(nsav)
     real(8) :: dt, ttot, eps
     real(8) :: gdpl, gplast, vmax, bdmax
     real(8) :: epsmax, edtot, cdist, dsrc
-    real(8) :: twr
+    real(8) :: twr(1000), dtwr  ! sim_time interval (microseconds) for sim_time series output, std: 20d6
     real(8) :: hh, hh1, hh2, hx2, hy2, hc, omdx
     integer :: Nc, Npu
     integer :: nfields, nglob, maxout, nwr
-    integer :: i, k, ih, iwr, j
-
-    !character (len=24) pname
+    integer :: i, k, ih, j
 
     maxout = size(time)
     nfields = size(vout, 2)
     nglob = size(globout, 2)
-
+    
+    if (maxout > 1000) then
+        error stop "maxout should be smaller than 1000, decrease value or increase twr-array"
+    end if
     if (nparams < N_GBDD_PARAMS) then
         error stop "GBDD parameter vector is too short."
     end if
@@ -82,13 +81,6 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         error stop "GBDD parameter vector is too long."
     end if
     call init()
-    print*, "START", temp, Ngbn, Dgp
-
-    ih = int(D2*10)
-    !pname = 'gbdd-tau'// char(int(tau0/100)+48)//char(mod(int(tau0),100)/10+48) // &
-    !pname = 'gb1pt_L001'// &
-    !    '-T' // char(int(temp)/100+48) // char(mod(int(temp),100)/10+48) // &
-    !    '-d' // char(ih/1000+48) // char(mod(ih,1000)/100+48) // char(mod(ih,100)/10+48) // char(mod(ih,10)+48) //'.prt'
 
     !start condition if no applied stress: one absorbed dislocation
     if (abs(tau0) < 1.d-6) then
@@ -105,47 +97,18 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         vout(1,5,i) = hh
         hh = hh + bfield(i)/B
     end do
-    iwr = 2
-    it = 1
+    nout = 2  ! points to next output position
+    it = 1  ! iteration counter
 
-    ! ---------------------------
-    ! write protocol file for sim_time series output
-    ! ---------------------------
-    !open(40,file=pname, status='unknown', position='rewind')
-    !write(40,30) 'GB dislocation dynamics - version 2013-11-19'
-    !write(40,30) 'fully boundary conditions for flux, B and elastic field'
-    !write(40,10) 'shear modulus (MPa)', mu
-    !write(40,10) 'Poisson ratio', nu
-    !write(40,10) 'Temperature (K)', temp
-    !write(40,10) 'Diffusion coeff D0 (micron^2/micro sec)', D0
-    !write(40,10) 'Diffusion constant DC', DC
-    !write(40,10) 'dislocation mobility B/(MPa micro sec)', M
-    !write(40,10) 'strain rate (1/micro sec)', edtot
-    !write(40,10) 'grain size (micron)', D2
-    !write(40,10) 'distance of glide planes (micron)', Dgp
-    !write(40,10) 'Burgers vector norm (micron)', B
-    !write(40,10) 'GB cell size (micron)', gbdx
-    !write(40,20) 'number GB cells', Ngbn
-    !write(40,30) 'it, ttot (s), dt, gdpl (1/s), dgpl_av (1/s), gplast, tau0, bdmax, vmax, v_av, Npu, Nabs, sum(bfield)'
-
-    !10 format('# ',A40,G14.5)
-    !20 format('# ',A40,I8)
-    !30 format('# ',A100)
-
-    !iteration loop 
+    !  === iteration loop ===
     !do while (((bdmax>1.e-13).or.(gdpl>1.e-12)).and.(it<=niter)) 
     !do while ((gplast<epsmax).and.(it<=niter))
     do while ((it<=niter).and.(ttot < tfin))
-    !   ! calculate current stress!
-    !   hh   = ttot*edtot
-    !   tau0 = mu*(hh-gplast)
+        !! calculate current stress
+        !hh   = ttot*edtot
+        !tau0 = mu*(hh-gplast)
         
-        !dislocation nucleation criterion 
-        !hh = 0.d0
-        !do i=1,Npu
-        !    !print*, "START1", it, i, ypu(i), Npu
-        !    if (ypu(i) > hh) hh=ypu(i)
-        !end do
+        ! dislocation nucleation criterion
         if (abs(tau0) < 1.d-6) then
             hh = D2  ! avoid dislocation nucleation on slip plane
         else
@@ -154,10 +117,9 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         if (hh < dsrc) then
             Npu = Npu + 1
             ypu(Npu) = D2
-            call tau_GB() ! calculate force on dislocations
-            if (fdis(Npu) > -fcrit) Npu = Npu - 1 !nucleation failed if test dislocation is pushed out
+            call tau_GB()  ! calculate force on dislocations
+            if (fdis(Npu) > -fcrit) Npu = Npu - 1  ! nucleation failed if test dislocation is pushed out
         end if 
-        !print*, "START2", it, Npu
         if (Npu > maxdis) then
             write(*,*) 'Npu greater maxdis'
             stop
@@ -166,21 +128,17 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
 
         ! move dislocations 
         if (Npu > 0) then
-            !call tau_GB() ! calculate force on dislocations
             vmax = 0.d0
             yrk = ypu
             frk = fdis
-            !print*, 'MOVE1', it, Npu, ypu(:Npu), dt, M, fdis(:Npu)
             ypu = ypu + 0.8d0*M*dt*fdis
-            !print*, 'MOVE2', it, Npu, ypu(:Npu), dt, M, fdis(:Npu)
-            call tau_GB()
+            call tau_GB()  ! calculates fdis
             fdis = 0.5d0*(fdis + frk)
             ypu = yrk
             do i=1,Npu
                 hh = M*fdis(i)
                 vdis(i) = hh
                 if (abs(hh) > vmax) vmax = abs(hh)
-                !print*, "VDIS1", it, i, fdis(i), vdis(i), Npu
             end do
                 
             ! sim_time step control
@@ -194,11 +152,10 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             hh = 0.d0
             yrk = ypu
             do i=1,Npu
-                !print *, "VDIS", it, i, ypu(i), vdis(i)
                 ypu(i) = ypu(i) + vdis(i)*dt
                 hh = hh + ypu(i)
             end do
-            call tau_GB()  ! uodate fdis with new positions
+            call tau_GB()  ! update fdis with new positions
             hh = (Npu*D2 - hh + D2*Nabs)*B/(D2*Dgp)
             gdpl = (hh-gplast)/dt
             gplast = hh
@@ -234,31 +191,22 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         do i=1,Ngbn 
             hh1 = 0.
             hh2 = 0.
-            !hx2 = (i-Nc)*gbdx
-            !hx2 = hx2*hx2
             hx2 = xpos(i)*xpos(i)
             ! contribution of GB elastic field: U(x_i, x_j)
             do k=1,Ngbn
                hh1 = hh1 + bfield(k)*Upot(i,k)  ! Upot(i,i) = 0
-!                hh1 = hh1 + bfield(k)*log(sin(pi*(k-i)/Ngbn))
             end do
             ! contribution of pile-up/GB dis interaction: V(x_i, y_j)
             do k=1,Npu
                 hy2 = ypu(k)
                 hy2 = hy2*hy2
-                !!print *, "HERE",it, k, ypu(k), hy2
-                !!hh2 = hh2 + hx2/(hx2 + hy2) + log(sqrt(hx2+hy2)/B); ! old version, v1.0.0
-                !hh = sqrt(hx2+hy2)/D2
-                !hc = hy2 / (hx2 + hy2)
-                !hh2 = hh2 + log(hh) * sqrt(1.d0 + 4.d0*hc - 4.d0*hc*hc)  ! new version, v1.1.0
                 hc = hx2 + hy2
                 hh2 = hh2 + 0.5*log(hc/D2) + hx2/hc  ! new version, v2.2.0
             end do
-            dGdb(i) = mu*bfield(i) - df*C*hh1 - C*B*hh2  ! mu*bfield(i) ! new in v2.1.2
+            dGdb(i) = mu*bfield(i) - df*C*hh1 - C*B*hh2  ! new in v2.1.2
         end do
         if ((mod(it,1000)==0).and.(dt>dtmax*0.9)) then
             df = min(df*(1.d0+dtmax*1.d-7), 1.d0)  ! gradually increase damping factor to 1 (no damping)
-            !print*,mu*bfield(Nc), df*C*hh1, dt, df
         end if
         do i=2,Ngbn-1
             Jf(i) = - DC*( 2.d0*dGdb(i) - dGdb(i-1) - dGdb(i+1) )
@@ -300,130 +248,29 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         bdot(1) = 0.d0
         bdot(Ngbn) = 0.d0
 
-        ! Write protocol output for sim_time series
-        if ((screen_out).and.(mod(it,nwr)==0)) then
-            ih = mod(it/nwr,nsav) + 1
-            ts(ih)  = ttot
-            gps(ih) = gplast
-            if (ih==nsav) ih = 0
-            hh1 = (gplast-gps(ih+1))/(1.d-6*(ttot-ts(ih+1)))
-            if (Npu > 0) then
-                hh2 = sum(vdis)/dble(Npu)
-            else
-                hh2 = 0.d0
-            end if
-            hh = sum(bfield)/B
-            !write(40,500) it, ttot*1.d-6, dt, gdpl*1.d6, hh1, gplast, tau0, &
-            !    bdmax, vmax, hh2, Npu, Nabs, hh
-            write(*,*) "Iteration, dt, ttot(s), max(bdot), sum(bfield), Npu, Nabs, max(y)", &
-                    it, dt, ttot*1.d-6, bdmax, sum(bfield), Npu, Nabs, maxval(ypu(:Npu))
-            !do i=1,ih5
-            !    write(*,*) pu_out(i, 1, :Npu)
-            !end do
-        end if
+        ! write protocol output to standard device if requested
+        if ((screen_out).and.(mod(it,nwr)==0)) call print_out()
         
         ! collect sim_time series output for GB nodes
-        if (ttot>=twr) then
-            ! collect gb data
-            if (iwr>maxout) then
-                write(*,*) 'iwr greater maxout, last sim_time step will be overwritten'
-                ih5 = maxout
-            else
-                ih5 = iwr
+        if (ttot >= twr(nout)) then
+            call store_data()
+            nout = nout + 1
+            if (nout > maxout) then
+                write(*,*) 'nout > maxout, last sim_time step will be overwritten'
+                nout = maxout
             end if
-            time(ih5) = ttot
-
-            hh = 0.d0
-            do i=1,Ngbn
-                vout(ih5,1,i) = Jf(i)
-                vout(ih5,2,i) = dGdb(i)
-                vout(ih5,3,i) = bdot(i)/B
-                vout(ih5,4,i) = bfield(i)/B
-                vout(ih5,5,i) = hh
-                hh = hh + bfield(i)/B
-            end do
-            iwr = iwr + 1
-            twr = twr + twr0 !*iwr*iwr
-            ! collect dislocation positions
-            pu_out(ih5, 1, :Npu) = ypu(:Npu)
-            pu_out(ih5, 2, :Npu) = fdis(:Npu)
-            pu_out(ih5, 3, :Npu) = vdis(:Npu)
-            ! collect global sim_time series data
-            ih = mod(it/nwr,nsav) + 1
-            ts(ih)  = ttot
-            gps(ih) = gplast
-            if (ih==nsav) ih = 0
-            hh1 = (gplast-gps(ih+1))/((ttot-ts(ih+1)))
-            if (Npu > 0) then
-                hh2 = sum(vdis)/dble(Npu)
-            else
-                hh2 = 0.d0
-            end if
-            hh = sum(bfield)/B
-            globout(ih5, 1) = it
-            globout(ih5, 2) = dt
-            globout(ih5, 3) = gdpl
-            globout(ih5, 4) = hh1
-            globout(ih5, 5) = gplast
-            globout(ih5, 6) = tau0
-            globout(ih5, 7) = bdmax
-            globout(ih5, 8) = vmax
-            globout(ih5, 9) = hh2
-            globout(ih5, 10) = Npu
-            globout(ih5, 11) = Nabs
-            globout(ih5, 12) = hh
         end if 
 
         it = it + 1
     end do  ! iteration loop
 
     !write final output 
-    if (iwr<maxout) then
-        ih5 = iwr
-        time(ih5) = ttot
-        hh = 0.d0
-        do i=1,Ngbn 
-            vout(ih5,1,i) = Jf(i)
-            vout(ih5,2,i) = dGdb(i)
-            vout(ih5,3,i) = bdot(i)/B
-            vout(ih5,4,i) = bfield(i)/B
-            vout(ih5,5,i) = hh
-            hh = hh + bfield(i)/B
-        end do
-        ! collect global sim_time series data
-        ih = mod(it/nwr,nsav) + 1
-        ts(ih)  = ttot
-        gps(ih) = gplast
-        if (ih==nsav) ih = 0
-        hh1 = (gplast-gps(ih+1))/((ttot-ts(ih+1)))
-        if (Npu > 0) then
-            hh2 = sum(vdis)/dble(Npu)
-        else
-            hh2 = 0.d0
-        end if
-        hh = sum(bfield)/B
-        globout(ih5, 1) = it
-        globout(ih5, 2) = dt
-        globout(ih5, 3) = gdpl
-        globout(ih5, 4) = hh1
-        globout(ih5, 5) = gplast
-        globout(ih5, 6) = tau0
-        globout(ih5, 7) = bdmax
-        globout(ih5, 8) = vmax
-        globout(ih5, 9) = hh2
-        globout(ih5, 10) = Npu
-        globout(ih5, 11) = Nabs
-        globout(ih5, 12) = hh
-    end if
-
-    !close(40)  ! close protocol file
-
-    500 format(I8, 4G14.5, G18.9,4G14.5, 2I5, G15.5)
-
+    if (nout <= maxout) call store_data()
 
 contains
     subroutine init()
         implicit none
+        real(8) :: hh, hf
         integer :: i, k
 
         ! initialize fields
@@ -431,8 +278,6 @@ contains
         pu_out = 0.d0
         globout = 0.d0
         vout = 0.d0
-        ts = 0.d0
-        gps = 0.d0
         vdis = 0.d0
         fdis = 0.d0
         bdmax = 0.d0
@@ -445,6 +290,9 @@ contains
         bdot = 0.d0
         ypu = 0.d0
         bfield = 0.d0
+        Nabs = 0 ! number of dislocations absorbed in GB
+        Npu = 0 ! number of dislocations in pile up (on slip plane)
+        Npu_max = Npu
 
         ! material parameters
         mu    = params(IDX_MU)  !mu = 44.d3 ! (MPa)
@@ -461,18 +309,33 @@ contains
         R = 8.31446d0 ! gas constant (J/molK)
         D0 = Dif_gb*exp(-Qact/(R*temp)) ! GB diffusion coefficient
         Omega = B*B !atomic volume
-        dsrc = D2 - 100*B ! 0.9*D2  ! distance require for dislocation source
+        dsrc = D2 - 100*B  ! distance required for dislocation source
+
+        ! write truncated output times into array; new in v2.2.1
+        dtwr = tfin / maxout
+        if (abs(tau0) < 1.d-6) dtwr = dtwr / maxout  ! decressive output frequency for GB diffusion w/o PU
+        twr(1) = 0.d0
+        do i=2, maxout
+            hh = (i-1) * dtwr ! constant output frequency
+            if (abs(tau0) < 1.d-6) hh = hh*i! decressive output frequency
+            k = int(log(hh) / log(10.d0))
+            if (k > 4) then
+                k = k - 2  ! round to 3 leading digits if > 1e5
+            elseif (k > 3) then
+                k = k - 1  ! round to 2 leading digits if > 1e4
+            end if
+            hf = 10.d0**k
+            twr(i) = int(hh / hf) * hf
+        end do
 
         ! set numerical parameters
-        twr0 = tfin / maxout ! for cubic time scale: apply maxout**2
-        dt = dtmax*1.d-4  ! 0.05 ! initial time step (microseconds)
+        dt = dtmax*1.d-4  ! initial time step (microseconds)
         df = 0.5  ! damping factor for contribution of GB to dgdb; df=1: no damping
         nwr = niter / 100
         eps = 1.d-20
         epsmax = 1.5d-2
         edtot  = 1.d-9 ! (1/micro sec)
         cdist = 10.d0*B
-        twr = twr0    ! first write sim_time for sim_time series output
         Nc = (Ngbn+1)/2 !center of GB
         gbdx = Dgp/(Ngbn-1) ! size of GB elements
         omdx = Omega/gbdx
@@ -487,10 +350,6 @@ contains
                 Upot(i, k) = log((k-i)*gbdx/D2)
             end do
         end do
-        Nabs = 0 ! number of dislocations absorbed in GB
-        Npu = 0 ! number of dislocations in pile up (on slip plane)
-        !ypu(1) = 0.9*D2
-        Npu_max = Npu
 
     end subroutine init
     !===================================
@@ -499,7 +358,7 @@ contains
     subroutine tau_GB()
         implicit none 
 
-        real(8) :: hh, hx, hx2, hy, hy2, hc, hr2, hsc, hfr
+        real(8) :: hh, hx2, hy, hy2, hr2
         integer :: i, j
         ! 
         ! calculate Peach-Kohler force on dislocations on slip plane 
@@ -513,22 +372,59 @@ contains
                 if (j==i) cycle
                 hh = hh + B/(hy-ypu(i))
             end do
-            do i=1,Ngbn 
-                !hx = abs(i-Nc)*gbdx
-                !hx2 = hx*hx
-                !hc = hy2/(hx2 + hy2)   ! new formulation in v1.1.0
-                !hr2 = hx2 + hy2
-                !!print*, 'TAU', j, i, hx, hy, hc, hr2
-                !hsc = 1.d0 + 4.d0*hc - 4.d0*hc*hc
-                !hfr = 4.d0*hx2*hy*(1.d0-2.d0*hc) / (hr2*hr2*hsc)
-                !hh = hh + bfield(i)*sqrt(hsc)*(hfr*log(sqrt(hr2)/D2) + hy/hr2)
-                hx = xpos(i)
-                hx2 = hx*hx
+            do i=1,Ngbn
+                hx2 = xpos(i)
+                hx2 = hx2*hx2
                 hr2 = hx2 + hy2
                 hh = hh + bfield(i)*hy*(hy2 - hx2)/(hr2*hr2)  ! new in v2.2.0
             end do 
             fdis(j) = (C*hh - tau0)*B
         end do
     end subroutine tau_GB
+    !===================================
+
+    !===================================
+    subroutine store_data()
+        ! collect gb data
+        time(nout) = ttot
+        hh = 0.d0
+        do i=1,Ngbn
+            vout(nout,1,i) = Jf(i)
+            vout(nout,2,i) = dGdb(i)
+            vout(nout,3,i) = bdot(i)/B
+            vout(nout,4,i) = bfield(i)/B
+            vout(nout,5,i) = hh
+            hh = hh + bfield(i)/B
+        end do
+        ! collect dislocation positions
+        pu_out(nout, 1, :Npu) = ypu(:Npu)
+        pu_out(nout, 2, :Npu) = fdis(:Npu)
+        pu_out(nout, 3, :Npu) = vdis(:Npu)
+        ! collect global sim_time series data
+        hh1 = (gplast-globout(nout-1, 5)) / (ttot-time(nout-1))
+        if (Npu > 0) then
+            hh2 = sum(vdis)/dble(Npu)
+        else
+            hh2 = 0.d0
+        end if
+        globout(nout, 1) = it
+        globout(nout, 2) = dt
+        globout(nout, 3) = gdpl
+        globout(nout, 4) = hh1
+        globout(nout, 5) = gplast
+        globout(nout, 6) = tau0
+        globout(nout, 7) = bdmax
+        globout(nout, 8) = vmax
+        globout(nout, 9) = hh2
+        globout(nout, 10) = Npu
+        globout(nout, 11) = Nabs
+        globout(nout, 12) = sum(bfield)/B
+    end subroutine store_data
+    !===================================
+
+    subroutine print_out()
+        write(*,*) "Iteration, dt, ttot(s), max(bdot), sum(bfield), Npu, Nabs, max(y)", &
+                it, dt, ttot*1.d-6, bdmax, sum(bfield), Npu, Nabs, maxval(ypu(:Npu))
+    end subroutine print_out
 
 end subroutine calc_gbdd

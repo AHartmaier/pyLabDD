@@ -310,7 +310,14 @@ class GB_dislocations:
                 path += "/"
 
         dt = max(1, last_frame // nplot)
-        ts = time * 1.0e-6
+        tfac = 1.0e-6
+        ts = time * tfac
+        if np.isclose(tfac, 1.0e-6):
+            tlab = " s"
+        elif np.isclose(tfac, 1.0e-9):
+            tlab = r"$\cdot$10$^3$ s"
+        elif np.isclose(tfac, 1.0e-12):
+            tlab = r"$\cdot$10$^6$ s"
 
         for field in selected_names:
             if field == "displacement":
@@ -331,8 +338,7 @@ class GB_dislocations:
                     marker="none",
                     linestyle="-",
                     color=plt.cm.viridis(i / max(1, last_frame)),
-                    label=f"t={int(ts[i])}" + r"$\cdot$10$^3$ s",
-                    #label=f"t={ts[i]:.1f} s",
+                    label=f"t={int(ts[i])}" + tlab,
                 )
             plt.legend(loc='upper left')  # bbox_to_anchor=(1.04, 1) to place legend outside
             plt.ylabel(ylab)
