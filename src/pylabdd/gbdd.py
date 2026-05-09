@@ -445,7 +445,7 @@ class GB_dislocations:
 
         metadata = {
             "title": "GB dislocation dynamics",
-            "version": "2.2.0",
+            "version": "2.2.1",
             "author": "Alexander Hartmaier",
             "institution": "Ruhr-Universitaet Bochum, ICAMS",
             "copyright": "Copyright (c) 2013-2026 by the Author. All rights reserved.",
