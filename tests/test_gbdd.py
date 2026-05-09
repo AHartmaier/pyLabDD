@@ -140,3 +140,141 @@ def test_plot_field_rejects_unknown_name():
     gb = make_simulated_gb()
     with pytest.raises(KeyError):
         gb.plot_field("does_not_exist")
+# -----------------------------------------------------------------------------
+# HDF5 I/O tests
+# -----------------------------------------------------------------------------
+
+def test_save_hdf5_writes_expected_structure_and_metadata(tmp_path):
+    gb = make_simulated_gb()
+    out_file = tmp_path / "gbdd_result.h5"
+
+    returned_path = gb.save_hdf5(out_file, nout=2)
+
+    assert returned_path == out_file
+    assert out_file.exists()
+
+    import h5py
+    with h5py.File(out_file, "r") as h5:
+        assert h5.attrs["format"].decode() == "pyLabDD GBDD result"
+        assert h5.attrs["format_version"].decode() == "1.0"
+
+        assert set(h5.keys()) == {"metadata", "time", "xval", "gb", "pileup", "global"}
+        assert h5["time"].shape == (2,)
+        assert h5["xval"].shape == (gb.Ngbn,)
+        assert h5["gb/fields"].shape == (2, len(gb.field_names), gb.Ngbn)
+        assert h5["pileup/fields"].shape == (2, len(gb.dis_names), gb.npu_max)
+        assert h5["global/fields"].shape == (2, len(gb.glob_names))
+
+        gb_names = [name.decode() for name in h5["gb"].attrs["field_names"]]
+        pu_names = [name.decode() for name in h5["pileup"].attrs["field_names"]]
+        glob_names = [name.decode() for name in h5["global"].attrs["field_names"]]
+        assert gb_names == gb.field_names
+        assert pu_names == gb.dis_names
+        assert glob_names == gb.glob_names
+
+        meta = h5["metadata"].attrs
+        assert meta["nout"] == 2
+        assert meta["npu_max"] == gb.npu_max
+        assert meta["Ngbn"] == gb.Ngbn
+        assert meta["maxout"] == gb.maxout
+        assert meta["tau0"] == gb.tau0
+        assert meta["temperature"] == gb.temp
+
+        np.testing.assert_allclose(h5["time"][()], [0.0, 1.0])
+        np.testing.assert_allclose(h5["gb/fields"][:, 0, :], 10.0)
+        np.testing.assert_allclose(h5["pileup/fields"][:, 0, :], [[1, 2], [3, 4]])
+        np.testing.assert_allclose(h5["global/fields"][:, 0], [1, 2])
+
+
+def test_read_hdf5_roundtrip_restores_arrays_metadata_and_dicts(tmp_path):
+    gb = make_simulated_gb()
+    out_file = tmp_path / "roundtrip.h5"
+    gb.save_hdf5(out_file, nout=3)
+
+    loaded = GB_dislocations()
+    loaded.read_hdf5(out_file)
+
+    assert loaded.nout == 3
+    assert loaded.npu_max == gb.npu_max
+    assert loaded.nabs == gb.nabs
+    assert loaded.it_done == gb.it_done
+    assert loaded.Ngbn == gb.Ngbn
+    assert loaded.maxdis == gb.maxdis
+    assert loaded.maxout == gb.maxout
+
+    assert loaded.field_names == gb.field_names
+    assert loaded.dis_names == gb.dis_names
+    assert loaded.glob_names == gb.glob_names
+
+    np.testing.assert_allclose(loaded.sim_time, gb.sim_time[:3])
+    np.testing.assert_allclose(loaded.gb_node_pos, gb.gb_node_pos)
+    np.testing.assert_allclose(loaded.vout, gb.vout[:3, :, :])
+    np.testing.assert_allclose(loaded.pu_out, gb.pu_out[:3, :, :gb.npu_max])
+    np.testing.assert_allclose(loaded.globout, gb.globout[:3, :])
+
+    np.testing.assert_allclose(loaded.field_data["flux"], gb.vout[:3, 0, :])
+    np.testing.assert_allclose(loaded.pu_dis["position"], gb.pu_out[:3, 0, :gb.npu_max])
+    np.testing.assert_allclose(loaded.glob_data["iteration"], gb.globout[:3, 0])
+
+
+def test_save_hdf5_does_not_overwrite_when_requested(tmp_path):
+    gb = make_simulated_gb()
+    out_file = tmp_path / "existing.h5"
+    gb.save_hdf5(out_file)
+
+    with pytest.raises(FileExistsError):
+        gb.save_hdf5(out_file, overwrite=False)
+
+
+def test_save_hdf5_rejects_invalid_nout(tmp_path):
+    gb = make_simulated_gb()
+
+    with pytest.raises(ValueError, match="nout must be between"):
+        gb.save_hdf5(tmp_path / "bad_nout.h5", nout=gb.maxout + 1)
+
+
+@pytest.mark.parametrize(
+    "attribute,bad_value,match",
+    [
+        ("vout", np.zeros((3, 5)), "self.vout must have shape"),
+        ("pu_out", np.zeros((3, 4)), "self.pu_out must have shape"),
+        ("globout", np.zeros((3, 4, 5)), "self.globout must have shape"),
+    ],
+)
+def test_save_hdf5_rejects_invalid_array_dimensions(tmp_path, attribute, bad_value, match):
+    gb = make_simulated_gb()
+    setattr(gb, attribute, bad_value)
+
+    with pytest.raises(ValueError, match=match):
+        gb.save_hdf5(tmp_path / f"bad_{attribute}.h5")
+
+
+def test_save_hdf5_can_infer_nout_from_nonzero_time_when_nout_is_missing(tmp_path):
+    gb = make_simulated_gb()
+    gb.nout = None
+    gb.sim_time[:] = 0.0
+    gb.sim_time[:3] = [0.0, 0.5, 1.0]
+
+    out_file = tmp_path / "inferred_nout.h5"
+    gb.save_hdf5(out_file)
+
+    import h5py
+    with h5py.File(out_file, "r") as h5:
+        assert h5["time"].shape == (3,)
+        assert h5["metadata"].attrs["nout"] == 3
+
+
+def test_read_hdf5_accepts_legacy_file_without_nucleation_barrier(tmp_path):
+    gb = make_simulated_gb()
+    out_file = tmp_path / "legacy_without_fcrit.h5"
+    gb.save_hdf5(out_file)
+
+    import h5py
+    with h5py.File(out_file, "a") as h5:
+        del h5["metadata"].attrs["nucleation_barrier"]
+
+    loaded = GB_dislocations()
+    loaded.read_hdf5(out_file)
+
+    assert loaded.fcrit is None
+    np.testing.assert_allclose(loaded.field_data["flux"], gb.vout[:gb.nout, 0, :])
