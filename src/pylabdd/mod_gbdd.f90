@@ -255,7 +255,6 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         if (ttot >= twr(nout)) then
             call store_data()
             nout = nout + 1
-            print *, "HERE", it, ttot, nout, twr(nout-1:nout+1)
             if (nout > maxout) then
                 write(*,*) 'nout > maxout, last sim_time step will be overwritten'
                 nout = maxout
