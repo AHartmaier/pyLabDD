@@ -255,9 +255,11 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         if (ttot >= twr(nout)) then
             call store_data()
             nout = nout + 1
+            print *, "HERE", it, ttot, nout, twr(nout-1:nout+1)
             if (nout > maxout) then
                 write(*,*) 'nout > maxout, last sim_time step will be overwritten'
                 nout = maxout
+                stop
             end if
         end if 
 
@@ -312,17 +314,21 @@ contains
         dsrc = D2 - 100*B  ! distance required for dislocation source
 
         ! write truncated output times into array; new in v2.2.1
-        dtwr = tfin / maxout
+        dtwr = tfin / (maxout-2)
         if (abs(tau0) < 1.d-6) dtwr = dtwr / maxout  ! decressive output frequency for GB diffusion w/o PU
         twr(1) = 0.d0
         do i=2, maxout
             hh = (i-1) * dtwr ! constant output frequency
-            if (abs(tau0) < 1.d-6) hh = hh*i! decressive output frequency
+            if (abs(tau0) < 1.d-6) hh = hh*i  ! decressive output frequency
             k = int(log(hh) / log(10.d0))
-            if (k > 4) then
-                k = k - 2  ! round to 3 leading digits if > 1e5
+            if (k > 8) then
+                k = k - 4  ! round to 5 leading digits if > 1e9
+            elseif (k > 5) then
+                k = k - 3  ! round to 4 leading digits if > 1e6
             elseif (k > 3) then
-                k = k - 1  ! round to 2 leading digits if > 1e4
+                k = k - 2  ! round to 3 leading digits if > 1e4
+            elseif (k > 2) then
+                k = k - 1  ! round to 2 leading digits if > 1e3
             end if
             hf = 10.d0**k
             twr(i) = int(hh / hf) * hf
