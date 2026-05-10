@@ -7,6 +7,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 from matplotlib import pyplot as plt
+from scipy.signal import savgol_filter
 
 FloatArray: TypeAlias = NDArray[np.float64]
 NameOrNames: TypeAlias = str | Sequence[str] | None
@@ -227,7 +228,9 @@ class GB_dislocations:
                          names: NameOrNames = None, 
                          semi_log: bool = False,
                          file: str | None = None,
-                         path: str | None = None) -> None:
+                         path: str | None = None,
+                         fs:int = 24,
+                         lw:int = 2) -> None:
         """Plot sim_time series of selected global values."""
         _, glob_data, _, _, time, _, _ = self._require_results()
         selected_names = self._normalize_names(names, self.glob_names)
@@ -247,7 +250,8 @@ class GB_dislocations:
         ts = time * 1.0e-9
         ylabel = "data" if len(selected_names) > 1 else selected_names[0]
         colors = ["k", "r", "b", "g", "c", "m", "orange"]
-
+        plt.rcParams["font.size"] = fs
+        fig, ax = plt.subplots(figsize=(12, 8), dpi=200)
         for i, field in enumerate(selected_names):
             gv = glob_data[field][1:].copy()
             field_semi_log = semi_log
@@ -260,9 +264,14 @@ class GB_dislocations:
                 ylabel = r"$\dot{b}_{max}$ (1/s)"
                 field_semi_log = True
             elif field == "plast_slip_rate":
-                gv *= 1.0e6
-                ylabel = r"$\dot{\gamma}_{pl}$ (1/s)"
+                gv *= 1.0e9
+                ylabel = r"$\dot{\gamma}_{pl}$ (10$^{-3}$/s)"
                 field_semi_log = True
+            elif field == "psr_av":
+                gv[:-1] = savgol_filter(gv[:-1], window_length=25, polyorder=1, deriv=0)
+                gv *= 1.0e9
+                ylabel = r"$\dot{\gamma}_{pl}$ (10$^{-3}$/s)"
+                #field_semi_log = True
 
             plot_func = plt.semilogy if field_semi_log else plt.plot
             plot_func(
@@ -270,6 +279,7 @@ class GB_dislocations:
                 gv,
                 marker="none",
                 linestyle="-",
+                linewidth=lw,
                 color=colors[i % len(colors)],
                 label=field,
             )
@@ -287,7 +297,9 @@ class GB_dislocations:
                    nplot: int = 10,
                    last_frame: int | None = None,
                    file: str | None = None,
-                   path: str | None = None) -> None:
+                   path: str | None = None,
+                   fs:int = 24,
+                   lw:int = 2) -> None:
         """Plot selected field data over the grain boundary."""
         field_data, _, _, gb_node_pos, time, nout, _ = self._require_results()
         selected_names = self._normalize_names(names, self.field_names)
@@ -318,8 +330,9 @@ class GB_dislocations:
             tlab = r"$\cdot$10$^3$ s"
         elif np.isclose(tfac, 1.0e-12):
             tlab = r"$\cdot$10$^6$ s"
-
+        plt.rcParams["font.size"] = fs
         for field in selected_names:
+            fig, ax = plt.subplots(figsize=(12, 8), dpi=200)
             if field == "displacement":
                 ylab = r"$u \,/\, B$"
             elif field == "flux":
@@ -337,6 +350,7 @@ class GB_dislocations:
                     yv,
                     marker="none",
                     linestyle="-",
+                    linewidth=lw,
                     color=plt.cm.viridis(i / max(1, last_frame)),
                     label=f"t={int(ts[i])}" + tlab,
                 )
@@ -351,7 +365,8 @@ class GB_dislocations:
                      nplot: int = 10,
                      last_frame: int | None = None,
                      file: str | None = None,
-                     path: str | None = None) -> None:
+                     path: str | None = None,
+                     fs:int = 24) -> None:
         """Plot pile-up dislocation positions as a function of sim_time."""
         _, _, pu_dis, _, time, nout, npu_max = self._require_results()
         if nplot <= 0:
@@ -372,6 +387,8 @@ class GB_dislocations:
         dt = max(1, last_frame // nplot)
         ts = time * 1.0e-6
 
+        plt.rcParams["font.size"] = fs
+        fig, ax = plt.subplots(figsize=(12, 8), dpi=200)
         for i in range(0, last_frame, dt):
             active = np.nonzero(positions[i, :])[0]
             if active.size == 0:

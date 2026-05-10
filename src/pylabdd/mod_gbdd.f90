@@ -99,6 +99,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     end do
     nout = 2  ! points to next output position
     it = 1  ! iteration counter
+    if (screen_out) write(*,*) "Starting iteration for T, tau0, D2, Lgb, Ngbn", temp, tau0, D2, Dgp, Ngbn
 
     !  === iteration loop ===
     !do while (((bdmax>1.e-13).or.(gdpl>1.e-12)).and.(it<=niter)) 
