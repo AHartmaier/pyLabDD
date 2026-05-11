@@ -7,7 +7,6 @@ from pathlib import Path
 import h5py
 import numpy as np
 from matplotlib import pyplot as plt
-from scipy.signal import savgol_filter
 
 FloatArray: TypeAlias = NDArray[np.float64]
 NameOrNames: TypeAlias = str | Sequence[str] | None
@@ -257,7 +256,7 @@ class GB_dislocations:
             field_semi_log = semi_log
             if field == "timestep":
                 max_gv = np.max(gv) if gv.size else 0.0
-                if max_gv != 0.0:
+                if max_gv > 1.e-6:
                     gv /= max_gv
             elif field == "max_bdot":
                 gv *= 1.0e6
@@ -268,7 +267,12 @@ class GB_dislocations:
                 ylabel = r"$\dot{\gamma}_{pl}$ (10$^{-3}$/s)"
                 field_semi_log = True
             elif field == "psr_av":
-                gv[:-1] = savgol_filter(gv[:-1], window_length=25, polyorder=1, deriv=0)
+                from scipy.signal import savgol_filter
+                wl = min(25, int(self.nout * 0.1))
+                if wl < 2:
+                    print(f"Warning window length for savgol filter too small: {wl}; too few output items: {self.nout}")
+                else:
+                    gv[:-1] = savgol_filter(gv[:-1], window_length=wl, polyorder=1, deriv=0)
                 gv *= 1.0e9
                 ylabel = r"$\dot{\gamma}_{pl}$ (10$^{-3}$/s)"
                 #field_semi_log = True
@@ -332,10 +336,12 @@ class GB_dislocations:
             tlab = r"$\cdot$10$^6$ s"
         plt.rcParams["font.size"] = fs
         for field in selected_names:
+            ysc = 1.0
             fig, ax = plt.subplots(figsize=(12, 8), dpi=200)
             if field == "displacement":
                 ylab = r"$u \,/\, B$"
             elif field == "flux":
+                ysc = 1.e6
                 ylab = r"$J$ (1/s)"
             elif field == "bfield":
                 ylab = r"$b\,/\, B$"
@@ -347,7 +353,7 @@ class GB_dislocations:
                     yv -= np.mean(yv)
                 plt.plot(
                     gb_node_pos,
-                    yv,
+                    yv*ysc,
                     marker="none",
                     linestyle="-",
                     linewidth=lw,

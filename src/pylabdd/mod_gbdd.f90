@@ -62,7 +62,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     real(8) :: gdpl, gplast, vmax, bdmax
     real(8) :: epsmax, edtot, cdist, dsrc
     real(8) :: twr(1000), dtwr  ! sim_time interval (microseconds) for sim_time series output, std: 20d6
-    real(8) :: hh, hh1, hh2, hx2, hy2, hc, omdx
+    real(8) :: hh, hh1, hh2, hx2, hy2, hr2, hxl2, omdx
     integer :: Nc, Npu
     integer :: nfields, nglob, maxout, nwr
     integer :: i, k, ih, j
@@ -201,8 +201,9 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             do k=1,Npu
                 hy2 = ypu(k)
                 hy2 = hy2*hy2
-                hc = hx2 + hy2
-                hh2 = hh2 + 0.5*log(hc/D2) + hx2/hc  ! new version, v2.2.0
+                hr2 = hx2 + hy2
+                hxl2 = hx2 + D2*D2
+                hh2 = hh2 + 0.5*log(hr2/hxl2) + hx2/hr2 - hx2/hxl2  ! new version, v2.2.0
             end do
             dGdb(i) = mu*bfield(i) - df*C*hh1 - C*B*hh2  ! new in v2.1.2
         end do
