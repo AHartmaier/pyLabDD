@@ -202,7 +202,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
                 hy2 = ypu(k)
                 hy2 = hy2*hy2
                 hr2 = hx2 + hy2
-                hxl2 = hx2 + D2*D2
+                hxl2 = hx2 + 4.d0 ! D2*D2
                 hh2 = hh2 + 0.5*log(hr2/hxl2) + hx2/hr2 - hx2/hxl2  ! new version, v2.2.0
             end do
             dGdb(i) = mu*bfield(i) - df*C*hh1 - C*B*hh2  ! new in v2.1.2
@@ -351,10 +351,10 @@ contains
         do i=1,Ngbn
             xpos(i) = (i-Nc)*gbdx
             do k=1, i-1
-                Upot(i, k) = log((i-k)*gbdx/D2)
+                Upot(i, k) = log((i-k)*gbdx/2.d0) !/D2)
             end do
             do k=i+1, Ngbn
-                Upot(i, k) = log((k-i)*gbdx/D2)
+                Upot(i, k) = log((k-i)*gbdx/2.d0) !/D2)
             end do
         end do
 
