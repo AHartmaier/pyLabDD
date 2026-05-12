@@ -13,6 +13,7 @@
 !                     added Nabs to return values; fixed bug in tau_GB wrt tau0
 ! 2026-05-07: v2.2.0: Modified pile-up GB interaction terms
 ! 2026-05-09: v2.2.1: Automatic selection and truncation of output times
+! 2026-05-12: v2.2.2: Introduced constant Z for PU-GB interaction normalization (instead of D2)
 !
 ! Author: Alexander Hartmaier
 ! Institution: Ruhr-Universitaet Bochum, ICAMS
@@ -351,10 +352,10 @@ contains
         do i=1,Ngbn
             xpos(i) = (i-Nc)*gbdx
             do k=1, i-1
-                Upot(i, k) = log((i-k)*gbdx/2.d0) !/D2)
+                Upot(i, k) = log((i-k)*gbdx/2.d0) ! 2.d0) !/D2)
             end do
             do k=i+1, Ngbn
-                Upot(i, k) = log((k-i)*gbdx/2.d0) !/D2)
+                Upot(i, k) = log((k-i)*gbdx/2.d0) !2.d0) !/D2)
             end do
         end do
 
