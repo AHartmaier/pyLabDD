@@ -394,6 +394,7 @@ contains
     !===================================
     subroutine store_data()
         ! collect gb data
+        if (ttot-time(nout-1) < 1.d-6) return
         time(nout) = ttot
         hh = 0.d0
         do i=1,Ngbn
