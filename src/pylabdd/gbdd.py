@@ -34,6 +34,7 @@ class GB_dislocations:
         dtmax: float = 400.0,
         screenout: bool = False,
         from_file: str | None = None,
+        **kwargs: Any,
     ) -> None:
 
         from pylabdd.mod_gbdd import calc_gbdd
@@ -104,15 +105,22 @@ class GB_dislocations:
             self.drag: float = 500.  # dislocation drag coefficient; mobility = B / drag
             self.Dif_gb: float = 10.  # GB diffusion coeff (micron^2/micro s)
             self.fcrit: float = 1.e-2  # critical force for dislocation nucleation (MPa.micron)
+            # check if material parameters in kwargs
+            for k, v in kwargs.items():
+                if k in self.GBDD_PARAM_KEYS:
+                    setattr(self, k, v)
+                    print(f'Set {k}: {v}')
 
-            if self.Ngbn <= 0:
-                raise ValueError("Ngbn must be positive.")
-            if self.maxdis <= 0:
-                raise ValueError("maxdis must be positive.")
-            if self.maxout <= 0:
-                raise ValueError("maxout must be positive.")
-            if self.niter <= 0:
-                raise ValueError("niter must be positive.")
+            if self.Ngbn <= 1:
+                raise ValueError("Ngbn must be larger than 1.")
+            if self.maxdis <= 1:
+                raise ValueError("maxdis must be larger than 1.")
+            if self.maxout <= 1:
+                raise ValueError("maxout must be larger than 1.")
+            if self.niter <= 1:
+                raise ValueError("niter must be larger than 1.")
+            if self.drag <= 1.e-9:
+                raise ValueError("drag must be positive finite.")
 
             self.nfield: int = len(self.field_names)
             self.nglob: int = len(self.glob_names)

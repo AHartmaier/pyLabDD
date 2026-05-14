@@ -75,6 +75,9 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     if (maxout > 1000) then
         error stop "maxout should be smaller than 1000, decrease value or increase twr-array"
     end if
+    if (maxout < 2) then
+        error stop "maxout must be larger than 1"
+    end if
     if (nparams < N_GBDD_PARAMS) then
         error stop "GBDD parameter vector is too short."
     end if
@@ -83,23 +86,6 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     end if
     call init()
 
-    !start condition if no applied stress: one absorbed dislocation
-    if (abs(tau0) < 1.d-6) then
-        bfield(Nc) = B
-        Nabs = 1
-    end if
-    ! store initial values for GB nodes in output array
-    hh = 0.d0
-    do i=1,Ngbn
-        vout(1,1,i) = Jf(i)
-        vout(1,2,i) = dGdb(i)
-        vout(1,3,i) = bdot(i)/B
-        vout(1,4,i) = bfield(i)/B
-        vout(1,5,i) = hh
-        hh = hh + bfield(i)/B
-    end do
-    nout = 2  ! points to next output position
-    it = 1  ! iteration counter
     if (screen_out) write(*,*) "Starting iteration for T, tau0, D2, Lgb, Ngbn", temp, tau0, D2, Dgp, Ngbn
 
     !  === iteration loop ===
@@ -254,22 +240,13 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         ! write protocol output to standard device if requested
         if ((screen_out).and.(mod(it,nwr)==0)) call print_out()
         
-        ! collect sim_time series output for GB nodes
-        if (ttot >= twr(nout)) then
-            call store_data()
-            nout = nout + 1
-            if (nout > maxout) then
-                write(*,*) 'nout > maxout, last sim_time step will be overwritten'
-                nout = maxout
-                stop
-            end if
-        end if 
-
+        ! collect sim_time series output for GB nodes, PU dislocations and global quantities
+        if (ttot >= twr(nout)) call store_data()  ! increases nout by 1
         it = it + 1
     end do  ! iteration loop
 
-    !write final output 
-    if (nout <= maxout) call store_data()
+    ! write final output if iteration stopped early
+    if (nout < maxout) call store_data()
 
 contains
     subroutine init()
@@ -308,15 +285,16 @@ contains
         Dif_gb = params(IDX_DIFGB)  !Dif_gb = 1.d1 ! GB diffusion coeff (micron^2/micro s)
         fcrit = params(IDX_FCRIT)  ! critical force for dislocation nucleation
         pi = 4.d0*datan(1.d0)
-        C = mu/(2*pi*(1-nu)) ! is A in paper
         M = B/drag ! dislocation mobility B/(microsecond.MPa)
+        C = mu/(2*pi*(1-nu)) ! is A in paper
         R = 8.31446d0 ! gas constant (J/molK)
         D0 = Dif_gb*exp(-Qact/(R*temp)) ! GB diffusion coefficient
         Omega = B*B !atomic volume
         dsrc = D2 - 100*B  ! distance required for dislocation source
+                ! special simulation with one immobile PU dislocation
 
         ! write truncated output times into array; new in v2.2.1
-        dtwr = tfin / (maxout-2)
+        dtwr = tfin / (maxout-1)
         if (abs(tau0) < 1.d-6) dtwr = dtwr / maxout  ! decressive output frequency for GB diffusion w/o PU
         twr(1) = 0.d0
         do i=2, maxout
@@ -359,6 +337,32 @@ contains
             end do
         end do
 
+        !start condition if no applied stress: one absorbed dislocation
+        if (abs(tau0) < 1.d-6) then
+            bfield(Nc) = B
+            Nabs = 1
+            write(*,*) "Conducting simulation w/o PU dislocations, as tau0=0"
+        end if
+        if (drag > 1.d5) then
+            M = 0.d0
+            Npu = 1
+            Npu_max = Npu
+            ypu(Npu) = 0.5*D2
+            fcrit = 1.d9  ! avoid new dislocation nucleation
+            write(*,*) "Conduction simulation with one static PU dislocation as drag>1.e5"
+        end if
+        ! store initial values for GB nodes in output array
+        hh = 0.d0
+        do i=1,Ngbn
+            vout(1,1,i) = Jf(i)
+            vout(1,2,i) = dGdb(i)
+            vout(1,3,i) = bdot(i)/B
+            vout(1,4,i) = bfield(i)/B
+            vout(1,5,i) = hh
+            hh = hh + bfield(i)/B
+        end do
+        nout = 2  ! points to next output position
+        it = 1  ! iteration counter
     end subroutine init
     !===================================
 
@@ -395,6 +399,10 @@ contains
     subroutine store_data()
         ! collect gb data
         if (ttot-time(nout-1) < 1.d-6) return
+        if (nout > maxout) then
+            write(*,*) 'Error: nout > maxout'
+            stop
+        end if
         time(nout) = ttot
         hh = 0.d0
         do i=1,Ngbn
@@ -428,6 +436,8 @@ contains
         globout(nout, 10) = Npu
         globout(nout, 11) = Nabs
         globout(nout, 12) = sum(bfield)/B
+        if (nout < maxout) nout = nout + 1
+
     end subroutine store_data
     !===================================
 
