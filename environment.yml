@@ -13,7 +13,6 @@ dependencies:
   - ipykernel
   - jupyterlab
   - notebook
-  - nb_conda_kernels
   - h5py
   - hdf5
   - pkg-config
