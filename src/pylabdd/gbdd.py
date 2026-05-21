@@ -80,6 +80,10 @@ class GB_dislocations:
         )
 
         self.dis_names: list[str] = ["position", "force", "velocity"]
+        self.nfield: int = len(self.field_names)
+        self.nglob: int = len(self.glob_names)
+        self.npuval: int = len(self.dis_names)
+        self.screenout: bool = bool(screenout)  # print info on progress on screen
 
         if from_file is not None:
             self.read_hdf5(from_file)
@@ -95,7 +99,6 @@ class GB_dislocations:
             self.niter: int = int(niter)  # maximum number of iteration steps
             self.tfin: float = float(tfin)  # maximum physical time for simulation
             self.dtmax: float = float(dtmax)  # maximum time step
-            self.screenout: bool = bool(screenout)  # print info on progress on screen
             #constitutive parameters
             self.mu: float = 44.e3  # shear modulus (MPa)
             self.nu: float = 0.3  # Poisson ration
@@ -122,10 +125,6 @@ class GB_dislocations:
             if self.drag <= 1.e-9:
                 raise ValueError("drag must be positive finite.")
 
-            self.nfield: int = len(self.field_names)
-            self.nglob: int = len(self.glob_names)
-            self.npuval: int = len(self.dis_names)
-
             # Results are initialized by run_sim().
             self.vout = None
             self.pu_out = None
@@ -142,7 +141,8 @@ class GB_dislocations:
 
     def run_sim(self,
                 pudis: FloatArray | None = None,
-                bfield: FloatArray | None = None
+                bfield: FloatArray | None = None,
+                niter: int | None = None,
                 ) -> None:
         """Run the Fortran GB-dislocation simulation and store the results."""
         self.sim_time: FloatArray = np.zeros(self.maxout, dtype=np.float64, order="F")
@@ -167,6 +167,8 @@ class GB_dislocations:
         if pudis is not None:
             self.npu_max = len(pudis)
             self.pu_out[0, 0, :self.npu_max] = pudis
+        if niter is not None:
+            self.niter = niter
 
         pv = self._parameter_vector()
         npv = len(pv)
@@ -490,7 +492,7 @@ class GB_dislocations:
 
         metadata = {
             "title": "GB dislocation dynamics",
-            "version": "2.2.1",
+            "version": "2.2.3",
             "author": "Alexander Hartmaier",
             "institution": "Ruhr-Universitaet Bochum, ICAMS",
             "copyright": "Copyright (c) 2013-2026 by the Author. All rights reserved.",
