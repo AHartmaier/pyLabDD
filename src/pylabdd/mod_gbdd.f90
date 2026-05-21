@@ -14,6 +14,7 @@
 ! 2026-05-07: v2.2.0: Modified pile-up GB interaction terms
 ! 2026-05-09: v2.2.1: Automatic selection and truncation of output times
 ! 2026-05-12: v2.2.2: Introduced constant Z for PU-GB interaction normalization (instead of D2)
+! 2026-05-18: v2.2.3: Pre-existing dislocations can be passed into simulation via pu_out, option for immobilization
 !
 ! Author: Alexander Hartmaier
 ! Institution: Ruhr-Universitaet Bochum, ICAMS
@@ -41,7 +42,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     integer, intent(in) :: Ngbn    ! number of gain boundary nodes, should be odd to have a center node
     integer, intent(in) :: niter   ! maximum number of iteration steps
     integer, intent(in) :: maxdis  ! maximum number of dislocations in pile-up
-    integer, intent(out) :: Npu_max ! maximum number of dislocation in pile-up reached
+    integer, intent(inout) :: Npu_max ! maximum number of dislocation in pile-up reached
     integer, intent(out) :: it !number of iterations
     integer, intent(out) :: nout  ! number of outputs
     integer, intent(out) :: Nabs ! number of absorbed dislocations
@@ -52,8 +53,9 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     real(8), intent(in) :: Dgp   ! Length of GB segment considered (micron); size 0.005
     real(8), intent(in) :: tau0  ! applied shear stress (MPa) 
     real(8), intent(in) :: temp  ! temperature
-    real(8), intent(out) :: vout(:, :, :), time(:), xpos(:)
-    real(8), intent(out) :: pu_out(:, :, :), globout(:, :)
+    real(8), intent(inout) :: pu_out(:, :, :), vout(:, :, :)
+    real(8), intent(out) ::  time(:), xpos(:)
+    real(8), intent(out) :: globout(:, :)
     real(8) :: bfield(Ngbn), ypu(maxdis), fdis(maxdis), vdis(maxdis)
     real(8) :: M, C, DC, B, mu, nu, Omega, pi, gbdx, drag
     real(8) :: R, delta, Dif_gb, D0, Qact, df, fcrit
@@ -241,7 +243,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         if ((screen_out).and.(mod(it,nwr)==0)) call print_out()
         
         ! collect sim_time series output for GB nodes, PU dislocations and global quantities
-        if (ttot >= twr(nout)) call store_data()  ! increases nout by 1
+        if (ttot >= twr(nout+1)) call store_data()  ! increases nout by 1
         it = it + 1
     end do  ! iteration loop
 
@@ -256,9 +258,7 @@ contains
 
         ! initialize fields
         time = 0.d0
-        pu_out = 0.d0
         globout = 0.d0
-        vout = 0.d0
         vdis = 0.d0
         fdis = 0.d0
         bdmax = 0.d0
@@ -273,7 +273,6 @@ contains
         bfield = 0.d0
         Nabs = 0 ! number of dislocations absorbed in GB
         Npu = 0 ! number of dislocations in pile up (on slip plane)
-        Npu_max = Npu
 
         ! material parameters
         mu    = params(IDX_MU)  !mu = 44.d3 ! (MPa)
@@ -343,14 +342,30 @@ contains
             Nabs = 1
             write(*,*) "Conducting simulation w/o PU dislocations, as tau0=0"
         end if
-        if (drag > 1.d5) then
-            M = 0.d0
-            Npu = 1
-            Npu_max = Npu
-            ypu(Npu) = 0.5*D2
-            fcrit = 1.d9  ! avoid new dislocation nucleation
-            write(*,*) "Conduction simulation with one static PU dislocation as drag>1.e5"
+        if (Npu_max > 0) then
+            bfield(:) = vout(1,4,:)
+            do i=1,Npu_max
+                if (pu_out(1, 1, i) < cdist) then
+                    Nabs = Nabs + 1
+                    bfield(Nc) = bfield(Nc) + B
+                else
+                    Npu = Npu + 1
+                    ypu(Npu) = pu_out(1, 1, i)
+                end if
+            end do
+            write(*,*) "Conducting simulation with Npu preexisting dislocations: Npu =", Npu
+            write(*,*) "and Nabs absorbed dislocations: Nabs =", Nabs
+            if (drag > 1.d5) then
+                M = 0.d0  ! immobilize dislocations completely
+                fcrit = 1.d9  ! avoid new dislocation nucleation
+                write(*,*) "Conducting simulation with static PU dislocations as drag>1.e5"
+            end if
         end if
+        pu_out = 0.d0
+        vout = 0.d0
+        Npu_max = Npu
+        if (Npu > 0) pu_out(1, 1, :Npu) = ypu(:Npu)
+
         ! store initial values for GB nodes in output array
         hh = 0.d0
         do i=1,Ngbn
@@ -361,7 +376,7 @@ contains
             vout(1,5,i) = hh
             hh = hh + bfield(i)/B
         end do
-        nout = 2  ! points to next output position
+        nout = 1  ! points to first output position
         it = 1  ! iteration counter
     end subroutine init
     !===================================
@@ -398,11 +413,17 @@ contains
     !===================================
     subroutine store_data()
         ! collect gb data
-        if (ttot-time(nout-1) < 1.d-6) return
+        if (ttot-time(nout) < 1.d-6)  return
         if (nout > maxout) then
             write(*,*) 'Error: nout > maxout'
             stop
         end if
+        if (nout < maxout) then
+            nout = nout + 1
+        else
+            write(*,*) 'Maximum number of outputs reached. Last timestep will be overwritten.'
+        end if
+
         time(nout) = ttot
         hh = 0.d0
         do i=1,Ngbn
@@ -436,7 +457,6 @@ contains
         globout(nout, 10) = Npu
         globout(nout, 11) = Nabs
         globout(nout, 12) = sum(bfield)/B
-        if (nout < maxout) nout = nout + 1
 
     end subroutine store_data
     !===================================

@@ -273,11 +273,12 @@ class Dislocations:
         dy = np.multiply(dr_arr, np.abs(self.by[0:Nm]))
         xp[0:Nm] += dx
         yp[0:Nm] += dy
-        if self.bc == "pbc":
-            fpk = self.cfpk_pbc(xp, yp, self.bx, self.by, tau0, self.lx, self.ly, Nm, self.Ntot)
-        else:
-            fpk = self.cfpk(xp, yp, self.bx, self.by, tau0, Nm, self.Ntot)
-        fpk_arr = self.C * np.asarray(fpk, dtype=np.float64)
+        #if self.bc == "pbc":
+        #    fpk = self.cfpk_pbc(xp, yp, self.bx, self.by, tau0, self.lx, self.ly, Nm, self.Ntot)
+        #else:
+        #    fpk = self.cfpk(xp, yp, self.bx, self.by, tau0, Nm, self.Ntot)
+        #fpk_arr = self.C * np.asarray(fpk, dtype=np.float64)
+        fpk_arr = self.calc_force(tau0=tau0, Nm=Nm)
         fsp = np.sum(
             np.multiply(fpk_arr, np.abs(np.array([self.bx[0:Nm], self.by[0:Nm]]))), axis=0
         )
@@ -308,18 +309,19 @@ class Dislocations:
         if dt <= 0.0:
             raise ValueError(f"dt must be positive, got {dt}.")
 
+        fpk_arr = self.calc_force(tau0=tau0, Nm=Nm)
         if bc_eff == "pbc":
-            fpk = self.cfpk_pbc(
+            """fpk = self.cfpk_pbc(
                 self.xpos, self.ypos, self.bx, self.by, tau0, self.lx, self.ly, Nm, self.Ntot
             )
-            fpk_arr = self.C * np.asarray(fpk, dtype=np.float64)
+            fpk_arr = self.C * np.asarray(fpk, dtype=np.float64)"""
             fpk_arr[1, :] *= -1.0
             # define maximum dislocation displacement
             lb: float | FloatArray = -self.dmax
             ub: float | FloatArray = self.dmax
         elif bc_eff == "fixed":
-            fpk = self.cfpk(self.xpos, self.ypos, self.bx, self.by, tau0, Nm, self.Ntot)
-            fpk_arr = self.C * np.asarray(fpk, dtype=np.float64)
+            """fpk = self.cfpk(self.xpos, self.ypos, self.bx, self.by, tau0, Nm, self.Ntot)
+            fpk_arr = self.C * np.asarray(fpk, dtype=np.float64)"""
             # define possible range to move a dislocation within box
             with np.errstate(divide="ignore", invalid="ignore"):
                 lower_bound = np.abs(self.xpos[0:Nm] / self.bx[0:Nm])
@@ -351,11 +353,12 @@ class Dislocations:
         ih = np.array([1, 1], dtype=np.int64)  # initialize such that while is performed at least once
         jc = 0
         while len(ih) > 0 and jc < 5:
-            if bc_eff == "pbc":
+            """if bc_eff == "pbc":
                 fpk = self.cfpk_pbc(xp, yp, self.bx, self.by, tau0, self.lx, self.ly, Nm, self.Ntot)
             else:
                 fpk = self.cfpk(xp, yp, self.bx, self.by, tau0, Nm, self.Ntot)
-            fpk_arr = self.C * np.asarray(fpk, dtype=np.float64)
+            fpk_arr = self.C * np.asarray(fpk, dtype=np.float64)"""
+            fpk_arr = self.calc_force(tau0=tau0, Nm=Nm)
             fsp2 = np.sum(
                 np.multiply(fpk_arr, np.abs(np.array([self.bx[0:Nm], self.by[0:Nm]]))),
                 axis=0,
@@ -402,7 +405,7 @@ class Dislocations:
             dt = float(np.minimum(self.dt0 * 50.0, dt * 1.1))
         return fsp, dt
 
-    # relax all dislocation if True, otherwise only mobile dislocations are relaxed
+    # relax all dislocations if True, otherwise only mobile dislocations are relaxed
     def relax_disl(
         self,
         relax_all: bool = False,
@@ -410,6 +413,7 @@ class Dislocations:
         dt: float = 0.02,
         plot_conf: bool = False,
         plot_relax: bool = True,
+        show_arrows: bool = True,
     ) -> None:
         # ftol acceptable residual error in force relaxation
         Nm = self.Ntot if relax_all else self.Nmob
@@ -432,12 +436,12 @@ class Dislocations:
             if plot_relax and np.mod(nl, fout) == 0:
                 fd.append(fn)
             if plot_conf and np.mod(nl, 5000) == 0:
-                self.plot_stress()
+                self.plot_stress(show_arrows=show_arrows)
                 print("Iteration:", nl, ", residual force:", fn)
         self.xpeq = self.xpos.copy()  # store equilibrium positions
         self.ypeq = self.ypos.copy()
         if plot_conf:
-            self.plot_stress()
+            self.plot_stress(show_arrows=show_arrows)
             print("Final configuration", nl, fn)
         if plot_relax:
             fd.append(fn)

@@ -137,26 +137,39 @@ class GB_dislocations:
             self.gb_node_pos: FloatArray | None = None
             self.sim_time: FloatArray | None = None
             self.it_done: int | None = None
-            self.npu_max: int | None = None
+            self.npu_max: int = 0
             self.nout: int | None = None
 
-    def run_sim(self) -> None:
+    def run_sim(self,
+                pudis: FloatArray | None = None,
+                bfield: FloatArray | None = None
+                ) -> None:
         """Run the Fortran GB-dislocation simulation and store the results."""
         self.sim_time: FloatArray = np.zeros(self.maxout, dtype=np.float64, order="F")
         self.gb_node_pos: FloatArray = np.zeros(self.Ngbn, dtype=np.float64, order="F")
+        self.globout: FloatArray = np.zeros(
+            (self.maxout, self.nglob), dtype=np.float64, order="F"
+        )
         self.vout: FloatArray = np.zeros(
             (self.maxout, self.nfield, self.Ngbn), dtype=np.float64, order="F"
         )
         self.pu_out: FloatArray = np.zeros(
             (self.maxout, self.npuval, self.maxdis), dtype=np.float64, order="F"
         )
-        self.globout: FloatArray = np.zeros(
-            (self.maxout, self.nglob), dtype=np.float64, order="F"
-        )
+        # initialize bfield and PU dislocations for restart if given
+        if bfield is not None:
+            if pudis is None:
+                raise ValueError("pudis must not be None if bfield is specified.")
+            if len(bfield) != self.Ngbn:
+                raise ValueError(f'Length of "bfield" passed to function run_sum is {len(bfield)}, '
+                                 f'but should be {self.Ngbn}.')
+            self.vout[0, 3, :] = bfield
+        if pudis is not None:
+            self.npu_max = len(pudis)
+            self.pu_out[0, 0, :self.npu_max] = pudis
 
         pv = self._parameter_vector()
         npv = len(pv)
-
         it_done, npu_max, nout, nabs, time_out, xout, vout, pu_out, globout = self.calc_gbdd(
             pv,
             npv,
@@ -169,6 +182,7 @@ class GB_dislocations:
             self.tfin,
             self.niter,
             self.dtmax,
+            self.npu_max,
             self.sim_time,
             self.gb_node_pos,
             self.vout,
