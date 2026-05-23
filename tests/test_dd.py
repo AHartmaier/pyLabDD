@@ -240,7 +240,7 @@ def test_fnorm_rejects_wrong_dr_length(simple_dislocations: dd.Dislocations) -> 
 @pytest.mark.parametrize(
     ("law", "expected"),
     [
-        ("viscous", np.array([-2.0, 0.0, 3.0])),
+        ("viscous", np.array([-2.0 / F0, 0.0, 3.0 / F0])),
         ("powerlaw", np.array([-(2.0 / F0) ** 7, 0.0, (3.0 / F0) ** 7])),
     ],
 )

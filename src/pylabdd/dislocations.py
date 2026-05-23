@@ -95,8 +95,8 @@ class Dislocations:
         C: float,  # elastic parameter
         b0: float,  # Burgers vector norm
         dmob: float = 1.0,  # mobility
-        f0: float = 0.8,
-        m: float = 7.0,
+        f0: float = 1.0,
+        m: float = 3.0,
         dmax: float = 0.002,
         xpos: ArrayLike | None = None,
         ypos: ArrayLike | None = None,
@@ -288,7 +288,7 @@ class Dislocations:
     def dvel(self, fsp: ArrayLike, ml: MobilityLaw) -> FloatArray:
         fsp_arr = np.asarray(fsp, dtype=np.float64)
         if ml == "viscous":
-            hh = fsp_arr
+            hh = fsp_arr / self.f0
         elif ml == "powerlaw":
             hh = np.multiply(np.abs(fsp_arr / self.f0) ** self.m, np.sign(fsp_arr))
         else:
