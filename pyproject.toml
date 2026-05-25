@@ -29,7 +29,8 @@ classifiers = [
 dependencies = [
   "numpy",
   "matplotlib",
-  "fmodpy"
+  "fmodpy",
+  "h5py"
 ]
 
 [project.optional-dependencies]
