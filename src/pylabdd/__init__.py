@@ -17,7 +17,7 @@ try:
 except Exception as e:
     logging.warning(f'Compilation of F90 subroutine calc_fpk failed: {e}')
     logging.warning('Using slower Python versions.')
-    from .PK_force import calc_fpk, calc_fpk_pbc
+    from .PK_force_py import calc_fpk, calc_fpk_pbc
     FORT_AVAIL = False
 
 try:

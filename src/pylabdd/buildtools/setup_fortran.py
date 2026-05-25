@@ -1,5 +1,4 @@
 from setuptools.command.build_py import build_py as _build_py
-import subprocess
 import sys
 import os
 from pathlib import Path
@@ -7,7 +6,7 @@ from pathlib import Path
 
 class BuildFortran(_build_py):
     def run(self):
-        
+        import subprocess
         print("=" * 80)
         print("[BuildFortran] Starting Fortran compilation with fmodpy")
         print("=" * 80)
@@ -16,7 +15,7 @@ class BuildFortran(_build_py):
         if not fc:
             print("No environment variable 'FC' set. Using 'gfortran' as fortran compiler.")
             fc = 'gfortran'
-        print('****', fc)
+        print('F90 compiler: ', fc)
 
         # Ensure gfortran is available
         try:
@@ -24,7 +23,7 @@ class BuildFortran(_build_py):
             print("[BuildFortran] gfortran found.")
         except Exception as e:
             print("[BuildFortran] gfortran not found! Install via: conda install -c conda-forge gfortran")
-            #raise e
+            raise e
 
         # Ensure fmodpy is installed
         try:
@@ -48,7 +47,7 @@ class BuildFortran(_build_py):
             if cross:
                 # cross-compilation for osx_arm64 build on conda-forge is active
                 # patch fmodpy to run test on build-env and build code for host-env
-                import tempfile, stat, subprocess
+                import tempfile, stat
 
                 PREFIX = os.environ["PREFIX"]
                 BUILD_PREFIX = os.environ["BUILD_PREFIX"]
@@ -120,5 +119,10 @@ class BuildFortran(_build_py):
             print(f"[BuildFortran] PK_force directory created: {pk_dir}")
         else:
             print("[BuildFortran] WARNING: PK_force directory not found!")
+        pk_dir = fortran_dir / "mod_gbdd"
+        if pk_dir.exists():
+            print(f"[BuildFortran] mod_gbdd directory created: {pk_dir}")
+        else:
+            print("[BuildFortran] WARNING: mod_gbdd directory not found!")
 
         super().run()
