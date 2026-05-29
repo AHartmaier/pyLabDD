@@ -52,7 +52,7 @@ def fake_calc_gbdd(
 ):
     nout = 3
     npu_max = 2
-    nabs = 1
+    nabs = int(globout[0, 10]) + 1
     it_done = 123
 
     time_out[:nout] = [0.0, 1.0, 2.0]
@@ -80,15 +80,59 @@ def test_run_sim_maps_fortran_output():
     assert gb.nout == 3
     assert gb.npu_max == 2
 
-    np.testing.assert_allclose(gb.sim_time, [0.0, 1.0, 2.0])
+    np.testing.assert_allclose(gb.sim_time[:gb.nout], [0.0, 1.0, 2.0])
     np.testing.assert_allclose(gb.gb_node_pos, [0, 1, 2, 3, 4])
 
-    assert gb.field_data["flux"].shape == (3, 5)
-    assert gb.glob_data["iteration"].shape == (3,)
-    assert gb.pu_dis["position"].shape == (3, 2)
+    assert gb.field_data["flux"].shape == (gb.maxout, 5)
+    assert gb.glob_data["iteration"].shape == (gb.maxout,)
+    assert gb.pu_dis["position"].shape == (gb.maxout, 2)
 
-    np.testing.assert_allclose(gb.field_data["flux"], 10.0)
-    np.testing.assert_allclose(gb.pu_dis["position"], [[1, 2], [3, 4], [5, 6]])
+    np.testing.assert_allclose(gb.field_data["flux"][:gb.nout], 10.0)
+    np.testing.assert_allclose(gb.pu_dis["position"][:gb.nout], [[1, 2], [3, 4], [5, 6]])
+
+
+def fake_restart_calc_gbdd(
+    param, nparam, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, niter, dtmax, npu_max,
+    time_out, xout, vout, pu_out, globout, screenout
+):
+    nout = 4
+    npu_max = 2
+    nabs = int(globout[0, 10]) + 1
+    it_done = 321
+
+    time_out[:nout] = [0.0, 1.0, 2.0, 3.0] + time_out[0]
+    xout[:] = np.arange(Ngbn)
+
+    vout[1:nout, 0, :] = 10.0
+    vout[1:nout, 3, :] = 20.0
+
+    pu_out[1:nout, 0, :npu_max] = [[3, 4], [5, 6], [7, 8]]
+
+    return it_done, npu_max, nout, nabs, time_out, xout, vout, pu_out, globout
+
+
+def test_run_sim_restart_keeps_initial_state_at_index_zero_and_continues_at_one():
+    gb = GB_dislocations(Ngbn=5, maxdis=4, maxout=10)
+    gb.calc_gbdd = fake_restart_calc_gbdd
+    restart_vout = np.zeros((gb.nfield, gb.Ngbn))
+    restart_vout[0, :] = 99.0
+    restart_vout[3, :] = np.arange(gb.Ngbn)
+
+    gb.run_sim(
+        pudis=np.array([1.0, 2.0]),
+        vout=restart_vout,
+        r_time=8.0,
+        nabs=5,
+    )
+
+    assert gb.nout == 4
+    np.testing.assert_allclose(gb.sim_time[:gb.nout], [8.0, 9.0, 10.0, 11.0])
+    np.testing.assert_allclose(gb.vout[0, 0, :], 99.0)
+    np.testing.assert_allclose(gb.vout[1, 3, :], 20.0)
+    np.testing.assert_allclose(gb.pu_out[0, 0, :2], [1.0, 2.0])
+    np.testing.assert_allclose(gb.field_data["flux"][1:gb.nout], 10.0)
+    np.testing.assert_allclose(gb.pu_dis["position"][1:gb.nout], [[3, 4], [5, 6], [7, 8]])
+    assert gb.nabs == 6
 
 def fake_bad_nout(*args):
     time_out, xout, vout, pu_out, globout = args[-5:]

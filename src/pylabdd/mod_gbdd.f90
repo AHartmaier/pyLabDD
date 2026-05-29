@@ -53,9 +53,8 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     real(8), intent(in) :: Dgp   ! Length of GB segment considered (micron); size 0.005
     real(8), intent(in) :: tau0  ! applied shear stress (MPa) 
     real(8), intent(in) :: temp  ! temperature
-    real(8), intent(inout) :: pu_out(:, :, :), vout(:, :, :)
-    real(8), intent(out) ::  time(:), xpos(:)
-    real(8), intent(out) :: globout(:, :)
+    real(8), intent(inout) :: time(:), pu_out(:, :, :), vout(:, :, :), globout(:, :)
+    real(8), intent(out) ::  xpos(:)
     real(8) :: bfield(Ngbn), ypu(maxdis), fdis(maxdis), vdis(maxdis)
     real(8) :: M, C, DC, B, mu, nu, Omega, pi, gbdx, drag
     real(8) :: R, delta, Dif_gb, D0, Qact, df, fcrit
@@ -69,6 +68,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     integer :: Nc, Npu
     integer :: nfields, nglob, maxout, nwr
     integer :: i, k, ih, j
+    logical :: is_restart
 
     maxout = size(time)
     nfields = size(vout, 2)
@@ -101,8 +101,10 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         ! dislocation nucleation criterion
         if (abs(tau0) < 1.d-6) then
             hh = D2  ! avoid dislocation nucleation on slip plane
-        else
+        elseif (Npu > 0) then
             hh = maxval(ypu(:Npu))
+        else
+            hh = 0.d0
         end if
         if (hh < dsrc) then
             Npu = Npu + 1
@@ -253,12 +255,12 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
 contains
     subroutine init()
         implicit none
-        real(8) :: hh, hf
+        real(8) :: hh, hf, ysum
         integer :: i, k
 
         ! initialize fields
-        time = 0.d0
-        globout = 0.d0
+        is_restart = time(1) > 0.d0
+        ttot = time(1)
         vdis = 0.d0
         fdis = 0.d0
         bdmax = 0.d0
@@ -266,7 +268,6 @@ contains
         dgdb = 0.d0
         gdpl = 1.d0
         gplast = 0.d0
-        ttot = 0.d0
         Jf = 0.d0
         bdot = 0.d0
         ypu = 0.d0
@@ -293,11 +294,11 @@ contains
                 ! special simulation with one immobile PU dislocation
 
         ! write truncated output times into array; new in v2.2.1
-        dtwr = tfin / (maxout-1)
+        dtwr = (tfin - ttot) / (maxout-1)
         if (abs(tau0) < 1.d-6) dtwr = dtwr / maxout  ! decressive output frequency for GB diffusion w/o PU
-        twr(1) = 0.d0
+        twr(1) = ttot
         do i=2, maxout
-            hh = (i-1) * dtwr ! constant output frequency
+            hh = twr(1) + (i-1) * dtwr ! constant output frequency
             if (abs(tau0) < 1.d-6) hh = hh*i  ! decressive output frequency
             k = int(log(hh) / log(10.d0))
             if (k > 8) then
@@ -336,13 +337,43 @@ contains
             end do
         end do
 
+        if (is_restart) then
+            bfield(:) = vout(1,4,:) * B
+            Jf(:) = vout(1,1,:)
+            dGdb(:) = vout(1,2,:)
+            bdot(:) = vout(1,3,:) * B
+            Nabs = max(0, nint(globout(1, 11)))
+            do i=1,Npu_max
+                if (pu_out(1, 1, i) <= 0.d0) cycle
+                if (pu_out(1, 1, i) < cdist) then
+                    Nabs = Nabs + 1
+                    bfield(Nc) = bfield(Nc) + B
+                else
+                    Npu = Npu + 1
+                    ypu(Npu) = pu_out(1, 1, i)
+                end if
+            end do
+            if (Nabs == 0) Nabs = max(0, nint(sum(bfield) / B))
+            dt = max(dt, globout(1, 2))
+            gdpl = globout(1, 3)
+            gplast = globout(1, 5)
+            if (gplast <= 0.d0) then
+                ysum = 0.d0
+                if (Npu > 0) ysum = sum(ypu(:Npu))
+                gplast = (Npu*D2 - ysum + D2*Nabs)*B/(D2*Dgp)
+            end if
+            bdmax = maxval(abs(bdot))
+            vmax = maxval(abs(vdis))
+            write(*,*) "Restarting simulation from time =", time(1)
+            write(*,*) "with Npu =", Npu
+            write(*,*) "and Nabs absorbed dislocations: Nabs =", Nabs
         !start condition if no applied stress: one absorbed dislocation
-        if (abs(tau0) < 1.d-6) then
+        elseif (abs(tau0) < 1.d-6) then
             bfield(Nc) = B
             Nabs = 1
             write(*,*) "Conducting simulation w/o PU dislocations, as tau0=0"
         end if
-        if (Npu_max > 0) then
+        if ((.not. is_restart).and.(Npu_max > 0)) then
             bfield(:) = vout(1,4,:)
             do i=1,Npu_max
                 if (pu_out(1, 1, i) < cdist) then
@@ -361,10 +392,15 @@ contains
                 write(*,*) "Conducting simulation with static PU dislocations as drag>1.e5"
             end if
         end if
+        if ((is_restart).and.(Npu > 0).and.(maxval(abs(fdis(:Npu))) <= 0.d0)) call tau_GB()
+        time = 0.d0
+        globout = 0.d0
         pu_out = 0.d0
         vout = 0.d0
-        Npu_max = Npu
+        Npu_max = max(Npu_max, Npu)
         if (Npu > 0) pu_out(1, 1, :Npu) = ypu(:Npu)
+        if (Npu > 0) pu_out(1, 2, :Npu) = fdis(:Npu)
+        if (Npu > 0) pu_out(1, 3, :Npu) = vdis(:Npu)
 
         ! store initial values for GB nodes in output array
         hh = 0.d0
@@ -378,6 +414,16 @@ contains
         end do
         nout = 1  ! points to first output position
         it = 1  ! iteration counter
+        globout(1, 1) = it
+        globout(1, 2) = dt
+        globout(1, 3) = gdpl
+        globout(1, 5) = gplast
+        globout(1, 6) = tau0
+        globout(1, 7) = bdmax
+        globout(1, 8) = vmax
+        globout(1, 10) = Npu
+        globout(1, 11) = Nabs
+        globout(1, 12) = sum(bfield)/B
     end subroutine init
     !===================================
 

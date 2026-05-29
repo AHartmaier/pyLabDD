@@ -139,40 +139,98 @@ class GB_dislocations:
             self.npu_max: int = 0
             self.nout: int | None = None
 
-    def run_sim(self,
-                pudis: FloatArray | None = None,
-                bfield: FloatArray | None = None,
-                niter: int | None = None,
-                ) -> None:
-        """Run the Fortran GB-dislocation simulation and store the results."""
-        self.sim_time: FloatArray = np.zeros(self.maxout, dtype=np.float64, order="F")
-        self.gb_node_pos: FloatArray = np.zeros(self.Ngbn, dtype=np.float64, order="F")
-        self.globout: FloatArray = np.zeros(
+    def run_sim(
+        self,
+        pudis: FloatArray | None = None,
+        vout: FloatArray | None = None,
+        r_time: float | None = None,
+        niter: int | None = None,
+        nabs: int | None = None,
+    ) -> None:
+        """
+        Run the Fortran GB-dislocation simulation and store the results.
+
+        Parameters
+        ----------
+        pudis
+            Positions of pile-up dislocations. If ``r_time is None``, these
+            positions are interpreted as an optional start configuration for a
+            new simulation. If ``r_time`` is positive, they are interpreted as
+            the active pile-up dislocations at the restart state.
+        vout
+            GB field data for a restart. Only the Burgers-vector field
+            ``vout[..., 3, :]`` is used as start condition by the Fortran
+            routine. For convenience, either a full array with shape
+            ``(nout, nfield, Ngbn)`` or a single frame with shape
+            ``(nfield, Ngbn)`` is accepted.
+        r_time
+            Restart flag and time offset. If ``None``, a new simulation is
+            started. If positive, a restart is performed and ``vout`` and
+            ``pudis`` must both be provided. If an array is passed, the last
+            positive entry is used as restart time and, for full ``vout`` input,
+            as restart-frame index.
+        niter
+            Optional override for ``self.niter``.
+        nabs
+            Number of previously absorbed dislocations. During restart this is
+            passed to the Fortran routine through the initial global output row
+            so plastic-slip state and returned metadata continue consistently.
+
+        Result arrays keep length ``maxout``. Valid output is in
+        ``[:self.nout]``; during restart, index 0 stores the restart state and
+        continuation output starts at index 1.
+        """
+        
+        do_restart = r_time is not None
+
+        self.sim_time = np.zeros(self.maxout, dtype=np.float64, order="F")
+        self.gb_node_pos = np.zeros(self.Ngbn, dtype=np.float64, order="F")
+        self.globout = np.zeros(
             (self.maxout, self.nglob), dtype=np.float64, order="F"
         )
-        self.vout: FloatArray = np.zeros(
+        self.vout = np.zeros(
             (self.maxout, self.nfield, self.Ngbn), dtype=np.float64, order="F"
         )
-        self.pu_out: FloatArray = np.zeros(
+        self.pu_out = np.zeros(
             (self.maxout, self.npuval, self.maxdis), dtype=np.float64, order="F"
         )
-        # initialize bfield and PU dislocations for restart if given
-        if bfield is not None:
-            if pudis is None:
-                raise ValueError("pudis must not be None if bfield is specified.")
-            if len(bfield) != self.Ngbn:
-                raise ValueError(f'Length of "bfield" passed to function run_sum is {len(bfield)}, '
-                                 f'but should be {self.Ngbn}.')
-            self.vout[0, 3, :] = bfield
-        if pudis is not None:
-            self.npu_max = len(pudis)
-            self.pu_out[0, 0, :self.npu_max] = pudis
-        if niter is not None:
-            self.niter = niter
 
+        if do_restart:
+            if vout is None:
+                raise ValueError("vout must be provided for a restart simulation.")
+            if pudis is None:
+                raise ValueError("pudis must be provided for a restart simulation.")
+            if nabs is not None and nabs < 0:
+                raise ValueError("nabs must be non-negative.")
+            self.sim_time[0] = r_time
+            self.vout[0, :, :] = vout
+        elif vout is not None:
+            raise ValueError("vout is only used for restarts; pass sim_time > 0 as restart flag.")
+
+        if pudis is not None:
+            pudis_arr = np.asarray(pudis, dtype=np.float64)
+            if pudis_arr.ndim != 1:
+                raise ValueError(f"pudis must be one-dimensional, got shape {pudis_arr.shape}.")
+            if pudis_arr.size > self.maxdis:
+                raise ValueError(
+                    f"pudis contains {pudis_arr.size} dislocations, but maxdis is {self.maxdis}."
+                )
+            self.npu_max = int(pudis_arr.size)
+            self.pu_out[0, 0, :self.npu_max] = pudis_arr
+        else:
+            self.npu_max = 0
+
+        if niter is not None:
+            if niter <= 1:
+                raise ValueError("niter must be larger than 1.")
+            self.niter = int(niter)
+
+        restart_pu_frame = self.pu_out[0, :, :].copy() if do_restart else None
+        if do_restart and nabs is not None:
+            self.globout[0, 10] = nabs
         pv = self._parameter_vector()
         npv = len(pv)
-        it_done, npu_max, nout, nabs, time_out, xout, vout, pu_out, globout = self.calc_gbdd(
+        it_done, npu_max, nout, nabs_out, time_out, xout, v_out, pu_out, globout = self.calc_gbdd(
             pv,
             npv,
             self.tau0,
@@ -201,21 +259,24 @@ class GB_dislocations:
             raise ValueError(f"Fortran returned invalid npu_max={npu_max_i}.")
 
         self.field_data = {
-            name: vout[:nout_i, i, :].copy() for i, name in enumerate(self.field_names)
+            name: v_out[:, i, :].copy() for i, name in enumerate(self.field_names)
         }
         self.glob_data = {
-            name: globout[:nout_i, i].copy() for i, name in enumerate(self.glob_names)
+            name: globout[:, i].copy() for i, name in enumerate(self.glob_names)
         }
         self.pu_dis = {
-            name: pu_out[:nout_i, i, :npu_max_i].copy()
+            name: pu_out[:, i, :npu_max_i].copy()
             for i, name in enumerate(self.dis_names)
         }
         self.gb_node_pos = xout.copy()
-        self.sim_time = time_out[:nout_i].copy()
+        self.vout = v_out
+        self.pu_out = pu_out
+        self.globout = globout
+        self.sim_time = time_out[:nout_i]
         self.it_done = int(it_done)
         self.npu_max = npu_max_i
         self.nout = nout_i
-        self.nabs = int(nabs)
+        self.nabs = int(nabs_out)
 
     def _require_results(self) -> tuple[
         dict[str, FloatArray],
@@ -255,7 +316,7 @@ class GB_dislocations:
                          fs:int = 24,
                          lw:int = 2) -> None:
         """Plot sim_time series of selected global values."""
-        _, glob_data, _, _, time, _, _ = self._require_results()
+        _, glob_data, _, _, time, nout, _ = self._require_results()
         selected_names = self._normalize_names(names, self.glob_names)
         if not selected_names:
             return
@@ -270,13 +331,13 @@ class GB_dislocations:
             elif path[-1] != "/":
                 path += "/"
 
-        ts = time * 1.0e-9
+        ts = time[:nout] * 1.0e-9
         ylabel = "data" if len(selected_names) > 1 else selected_names[0]
         colors = ["k", "r", "b", "g", "c", "m", "orange"]
         plt.rcParams["font.size"] = fs
         fig, ax = plt.subplots(figsize=(12, 8), dpi=200)
         for i, field in enumerate(selected_names):
-            gv = glob_data[field][1:].copy()
+            gv = glob_data[field][:nout][1:].copy()
             field_semi_log = semi_log
             if field == "timestep":
                 max_gv = np.max(gv) if gv.size else 0.0
