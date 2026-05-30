@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pylabdd"
-version = "1.2.12"
+version = "1.2.13"
 description = "Python Laboratory for Dislocation Dynamics"
 readme = "README.md"
 license = "GPL-3.0-or-later"
