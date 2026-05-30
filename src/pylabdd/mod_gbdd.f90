@@ -288,7 +288,7 @@ contains
         nu    = params(IDX_NU)  !nu = 0.3
         B     = params(IDX_B)   !B = 0.25d-3 !bulk Burgers vector norm (micron)
         delta = params(IDX_DELTA)  !delta = 5.d-4 ! GB thickness (micron)
-        Qact  = params(IDX_QACT)  !Qact = 57.d3 ! activation energy for GB diffusion (J/mol)
+        Qact  = params(IDX_QACT)  !Qact = 95.d3 ! activation energy for GB diffusion (J/mol)
         drag  = params(IDX_DRAG)  ! 500.d0
         Dif_gb = params(IDX_DIFGB)  !Dif_gb = 1.d1 ! GB diffusion coeff (micron^2/micro s)
         fcrit = params(IDX_FCRIT)  ! critical force for dislocation nucleation
