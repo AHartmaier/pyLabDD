@@ -18,6 +18,13 @@ class GB_dislocations:
     The numerical work is performed by the Fortran routine
     ``pylabdd.mod_gbdd.calc_gbdd``. This class prepares the Fortran-order
     arrays, stores the returned data, and provides basic plotting helpers.
+
+    STANDARD UNITS:
+    length: micron
+    time: microsecond
+    stress: MPa
+    temperature: K
+    activation energy: J/mol (predifined in value for gas constant R)
     """
 
     def __init__(
@@ -553,7 +560,7 @@ class GB_dislocations:
 
         metadata = {
             "title": "GB dislocation dynamics",
-            "version": "2.2.3",
+            "version": "2.2.4",
             "author": "Alexander Hartmaier",
             "institution": "Ruhr-Universitaet Bochum, ICAMS",
             "copyright": "Copyright (c) 2013-2026 by the Author. All rights reserved.",
@@ -670,17 +677,17 @@ class GB_dislocations:
         self.temp = metadata["temperature"]
         self.Dgp = metadata["length_grain_boundary"]
         self.D2 = metadata["grain_size"]
-        self.Ngbn = metadata["Ngbn"]
-        self.maxdis = metadata["maxdis"]
-        self.maxout = metadata["maxout"]
-        self.niter = metadata["niter"]
+        self.Ngbn = int(metadata["Ngbn"])
+        self.maxdis = int(metadata["maxdis"])
+        self.maxout = int(metadata["maxout"])
+        self.niter = int(metadata["niter"])
         self.tfin = metadata["tfin"]
         self.dtmax = metadata["dtmax"]
-        self.it_done = metadata["it"]
-        self.npu_max = metadata["npu_max"]
-        self.nout = metadata["nout"]
+        self.it_done = int(metadata["it"])
+        self.npu_max = int(metadata["npu_max"])
+        self.nout = int(metadata["nout"])
         if "nabs" in metadata.keys():
-            self.nabs = metadata["nabs"]
+            self.nabs = int(metadata["nabs"])
         # constitutive parameters
         self.mu = metadata["shear_modulus"]
         self.nu = metadata["poisson_ratio"]

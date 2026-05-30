@@ -15,6 +15,14 @@
 ! 2026-05-09: v2.2.1: Automatic selection and truncation of output times
 ! 2026-05-12: v2.2.2: Introduced constant Z for PU-GB interaction normalization (instead of D2)
 ! 2026-05-18: v2.2.3: Pre-existing dislocations can be passed into simulation via pu_out, option for immobilization
+! 2026-05-30: v2.2.4: Added restart option, if time(1) > 0, and corresponding input check
+!
+! STANDARD UNITS:
+! length: micron
+! time: microsecond
+! stress: MPa
+! temperature: K
+! activation energy: J/mol (predifined in value for R)
 !
 ! Author: Alexander Hartmaier
 ! Institution: Ruhr-Universitaet Bochum, ICAMS

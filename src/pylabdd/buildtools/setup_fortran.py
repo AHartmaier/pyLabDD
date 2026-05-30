@@ -37,13 +37,13 @@ class BuildFortran(_build_py):
         # Path to Fortran source
         fortran_dir = Path(__file__).parent.parent  # point to src/pylabdd
         fortran_sources = ["PK_force.f90", "mod_gbdd.f90"]
+        cross = os.environ.get("CONDA_BUILD_CROSS_COMPILATION") == "1"
         for source in fortran_sources:
             ffile = fortran_dir / source
             if not ffile.exists():
                 raise FileNotFoundError(f"[BuildFortran] Fortran source not found: {ffile}")
             print(f"[BuildFortran] Compiling {ffile}")
             
-            cross = os.environ.get("CONDA_BUILD_CROSS_COMPILATION") == "1"
             if cross:
                 # cross-compilation for osx_arm64 build on conda-forge is active
                 # patch fmodpy to run test on build-env and build code for host-env
@@ -80,10 +80,12 @@ class BuildFortran(_build_py):
                     rebuild=False,
                     verbose=True
                 )
+                print(f"[BuildFortran] fimport completed successfully for module {source}")
             except Exception as e:
                 print("[BuildFortran] Fortran compilation failed!")
                 raise e
         if cross:
+            print(f"[BuildFortran] Cross-compilation active: building arm64 libraries with {arm_fc} and x86_64 libraries with {x86_fc}")
             for source in fortran_sources:
                 mod_name = Path(source).stem
                 lib_path = fortran_dir / mod_name
