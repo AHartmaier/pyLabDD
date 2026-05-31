@@ -42,6 +42,18 @@ def _for_build_env():
     return env
 
 
+def _is_macos_build():
+    return sys.platform == "darwin" or os.environ.get("target_platform", "").startswith("osx-")
+
+
+def _with_osx_headerpad_ldflags(ldflags):
+    flags = ldflags.split()
+    headerpad_flag = "-Wl,-headerpad_max_install_names"
+    if _is_macos_build() and headerpad_flag not in flags:
+        flags.append(headerpad_flag)
+    return " ".join(flags)
+
+
 class BuildFortran(_build_py):
     def run(self):
         import subprocess
@@ -144,9 +156,11 @@ exec "{x86_fc}" "${{args[@]}}" -L"{BUILD_PREFIX}/lib" -Wl,-rpath,"{BUILD_PREFIX}
             try:
                 # Let fmodpy build into its own subdirectory PK_force/
                 old_fflags = os.environ.get("FFLAGS")
+                old_ldflags = os.environ.get("LDFLAGS")
                 if cross:
                     build_env = _for_build_env()
                     os.environ["FFLAGS"] = build_env.get("FFLAGS", "")
+                os.environ["LDFLAGS"] = _with_osx_headerpad_ldflags(os.environ.get("LDFLAGS", ""))
                 fmodpy.fimport(
                     str(ffile),
                     f_compiler=fimport_fc,
@@ -164,6 +178,10 @@ exec "{x86_fc}" "${{args[@]}}" -L"{BUILD_PREFIX}/lib" -Wl,-rpath,"{BUILD_PREFIX}
                         os.environ.pop("FFLAGS", None)
                     else:
                         os.environ["FFLAGS"] = old_fflags
+                if old_ldflags is None:
+                    os.environ.pop("LDFLAGS", None)
+                else:
+                    os.environ["LDFLAGS"] = old_ldflags
         if cross:
             print(f"[BuildFortran] Cross-compilation active: building arm64 libraries with {arm_fc} and x86_64 libraries with {x86_fc}")
             for source in fortran_sources:
@@ -172,7 +190,7 @@ exec "{x86_fc}" "${{args[@]}}" -L"{BUILD_PREFIX}/lib" -Wl,-rpath,"{BUILD_PREFIX}
                 wrapper_name = f"{mod_name}_c_wrapper.f90"
                 lib_name = lib_path / f"{mod_name}.arm64.so"
                 fflags  = os.environ.get("FFLAGS", "").split()
-                ldflags = os.environ.get("LDFLAGS", "").split()
+                ldflags = _with_osx_headerpad_ldflags(os.environ.get("LDFLAGS", "")).split()
                 cmd = [
                     arm_fc,
                     source,
