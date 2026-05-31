@@ -4,6 +4,44 @@ import os
 from pathlib import Path
 
 
+def _drop_arm_fortran_flags(flags):
+    """Remove ARM CPU flags that an x86_64 build compiler cannot parse."""
+    cleaned = []
+    arm_prefixes = ("arm", "armv", "aarch64", "apple-m", "cortex-")
+    flags = list(flags)
+    i = 0
+
+    while i < len(flags):
+        flag = flags[i]
+        if flag in ("-march", "-mcpu", "-mtune"):
+            value = flags[i + 1].lower() if i + 1 < len(flags) else ""
+            if value.startswith(arm_prefixes):
+                i += 2
+                continue
+            cleaned.append(flag)
+            i += 1
+            continue
+
+        if flag.startswith(("-march=", "-mcpu=", "-mtune=")):
+            value = flag.split("=", 1)[1].lower()
+            if value.startswith(arm_prefixes):
+                i += 1
+                continue
+
+        cleaned.append(flag)
+        i += 1
+
+    return cleaned
+
+
+def _for_build_env():
+    env = os.environ.copy()
+    fflags = env.get("FFLAGS")
+    if fflags:
+        env["FFLAGS"] = " ".join(_drop_arm_fortran_flags(fflags.split()))
+    return env
+
+
 class BuildFortran(_build_py):
     def run(self):
         import subprocess
@@ -38,29 +76,61 @@ class BuildFortran(_build_py):
         fortran_dir = Path(__file__).parent.parent  # point to src/pylabdd
         fortran_sources = ["PK_force.f90", "mod_gbdd.f90"]
         cross = os.environ.get("CONDA_BUILD_CROSS_COMPILATION") == "1"
+        arm_fc = str(fc)
+        x86_fc = os.environ.get("FC_FOR_BUILD")
         for source in fortran_sources:
             ffile = fortran_dir / source
             if not ffile.exists():
                 raise FileNotFoundError(f"[BuildFortran] Fortran source not found: {ffile}")
             print(f"[BuildFortran] Compiling {ffile}")
+            fimport_fc = fc
             
             if cross:
                 # cross-compilation for osx_arm64 build on conda-forge is active
                 # patch fmodpy to run test on build-env and build code for host-env
                 import tempfile, stat
 
-                PREFIX = os.environ["PREFIX"]
                 BUILD_PREFIX = os.environ["BUILD_PREFIX"]
-                arm_fc = str(fc)
-                x86_fc = os.environ["FC_FOR_BUILD"]
+                if not x86_fc:
+                    raise RuntimeError("[BuildFortran] FC_FOR_BUILD must be set for cross-compilation")
                 
                 wrap_dir = tempfile.mkdtemp(prefix="fcwrap_")
                 wrapper = os.path.join(wrap_dir, "gfortran")
                 
                 script = f"""#!/usr/bin/env bash
-                # Build libraries for build and host archs
-                exec "{x86_fc}" "$@" -L"{BUILD_PREFIX}/lib" -Wl,-rpath,"{BUILD_PREFIX}/lib"
-                """
+# fmodpy probes the generated module with the build-arch compiler.  Conda's
+# osx-arm64 host FFLAGS can contain ARM-only options (for example
+# -march=armv8.3-a), which x86_64 gfortran rejects, so drop those here.
+args=()
+pending_arch_flag=""
+for arg in "$@"; do
+    if [[ -n "$pending_arch_flag" ]]; then
+        case "$arg" in
+            arm*|aarch64*|apple-m*|cortex-*)
+                pending_arch_flag=""
+                continue
+                ;;
+        esac
+        args+=("$pending_arch_flag" "$arg")
+        pending_arch_flag=""
+        continue
+    fi
+    case "$arg" in
+        -march|-mcpu|-mtune)
+            pending_arch_flag="$arg"
+            continue
+            ;;
+        -march=arm*|-mcpu=arm*|-mtune=arm*|-march=aarch64*|-mcpu=aarch64*|-mtune=aarch64*|-march=apple-m*|-mcpu=apple-m*|-mtune=apple-m*|-march=cortex-*|-mcpu=cortex-*|-mtune=cortex-*)
+            continue
+            ;;
+    esac
+    args+=("$arg")
+done
+if [[ -n "$pending_arch_flag" ]]; then
+    args+=("$pending_arch_flag")
+fi
+exec "{x86_fc}" "${{args[@]}}" -L"{BUILD_PREFIX}/lib" -Wl,-rpath,"{BUILD_PREFIX}/lib"
+"""
                 with open(wrapper, "w") as f:
                     f.write(script)
                 os.chmod(wrapper, os.stat(wrapper).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
@@ -69,13 +139,17 @@ class BuildFortran(_build_py):
                 print(script)
                 print(f"[BuildFortran-CrossCompiling] arm_gfortran: {arm_fc}")
                 print(f"[BuildFortran-CrossCompiling] x86_gfortran: {x86_fc}")
-                fc = str(wrapper)
+                fimport_fc = str(wrapper)
                 
             try:
                 # Let fmodpy build into its own subdirectory PK_force/
+                old_fflags = os.environ.get("FFLAGS")
+                if cross:
+                    build_env = _for_build_env()
+                    os.environ["FFLAGS"] = build_env.get("FFLAGS", "")
                 fmodpy.fimport(
                     str(ffile),
-                    f_compiler=fc,
+                    f_compiler=fimport_fc,
                     output_dir=str(fortran_dir),
                     rebuild=False,
                     verbose=True
@@ -84,6 +158,12 @@ class BuildFortran(_build_py):
             except Exception as e:
                 print("[BuildFortran] Fortran compilation failed!")
                 raise e
+            finally:
+                if cross:
+                    if old_fflags is None:
+                        os.environ.pop("FFLAGS", None)
+                    else:
+                        os.environ["FFLAGS"] = old_fflags
         if cross:
             print(f"[BuildFortran] Cross-compilation active: building arm64 libraries with {arm_fc} and x86_64 libraries with {x86_fc}")
             for source in fortran_sources:
