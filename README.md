@@ -73,6 +73,29 @@ Available notebooks with tutorials on the dislocation dynamics method and the Ta
 The Jupyter notebooks of the pyLabDD tutorials are also available on Binder 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/AHartmaier/pyLabDD.git/main)
 
+## HDF5 result catalog
+
+`HDF5Catalog` extracts attributes and dataset structure without loading the
+large numerical arrays. It can return a Python dictionary, maintain a
+searchable SQLite database, and plot direct datasets or packed named fields.
+
+```python
+from pylabdd.hdf5_catalog import HDF5Catalog
+
+with HDF5Catalog("data/catalog.sqlite") as catalog:
+    metadata = catalog.scan("data")
+    runs = catalog.query({"temperature": 900, "tau0": 150}, dataset="global/psr_av")
+    catalog.plot_group("global/psr_av", {"temperature": 900, "tau0": 150})
+```
+
+The same operations are available from the command line:
+
+```bash
+python -m pylabdd.hdf5_catalog --database data/catalog.sqlite index data
+python -m pylabdd.hdf5_catalog --database data/catalog.sqlite query temperature=900 tau0=150
+python -m pylabdd.hdf5_catalog --database data/catalog.sqlite plot global/psr_av temperature=900 --output psr.png
+```
+
 
 ## Contributions
 
