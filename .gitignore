@@ -33,6 +33,7 @@ PK_force_OLD/
 mod_gbdd/
 mod_gbdd_OLD
 Archive/
+data/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

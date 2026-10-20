@@ -395,17 +395,25 @@ class GB_dislocations:
                    file: str | None = None,
                    path: str | None = None,
                    fs:int = 24,
-                   lw:int = 2) -> None:
-        """Plot selected field data over the grain boundary."""
+                   lw:int = 2,
+                   times: Sequence[float] | None = None) -> None:
+        """Plot selected field data over the grain boundary.
+
+        ``times`` gives requested times in seconds and overrides ``nplot``
+        and ``last_frame``. Each requested time selects the nearest saved
+        frame among the first ``nout`` results. Its label uses the requested
+        time unless the mismatch exceeds 5% of its absolute value, in which
+        case the saved time is used. Zero requires an exact match.
+        """
         field_data, _, _, gb_node_pos, time, nout, _ = self._require_results()
         selected_names = self._normalize_names(names, self.field_names)
         if not selected_names:
             return
-        if nplot <= 0:
+        if times is None and nplot <= 0:
             raise ValueError("nplot must be positive.")
         if last_frame is None:
             last_frame = nout
-        if last_frame < 0 or last_frame > nout:
+        if times is None and (last_frame < 0 or last_frame > nout):
             raise ValueError("last_frame must be between 0 and nout.")
 
         missing = [name for name in selected_names if name not in field_data]
@@ -417,9 +425,22 @@ class GB_dislocations:
             elif path[-1] != "/":
                 path += "/"
 
-        dt = max(1, last_frame // nplot)
         tfac = 1.0e-6
-        ts = time * tfac
+        ts = time[:nout] * tfac
+        if times is None:
+            dt = max(1, last_frame // nplot)
+            frames = [(i, int(ts[i])) for i in range(0, last_frame, dt)]
+        else:
+            requested_times = np.asarray(times, dtype=float)
+            if requested_times.ndim != 1 or not np.all(np.isfinite(requested_times)):
+                raise ValueError("times must be a one-dimensional sequence of finite times in seconds.")
+            if requested_times.size and not ts.size:
+                raise ValueError("No saved frames are available for the requested times.")
+            frames = []
+            for requested in requested_times:
+                i = int(np.argmin(np.abs(ts - requested)))
+                label_time = requested if abs(ts[i] - requested) <= 0.05 * abs(requested) else ts[i]
+                frames.append((i, label_time))
         if np.isclose(tfac, 1.0e-6):
             tlab = " s"
         elif np.isclose(tfac, 1.0e-9):
@@ -439,7 +460,7 @@ class GB_dislocations:
                 ylab = r"$b\,/\, B$"
             else:
                 ylab = field
-            for i in range(0, last_frame, dt):
+            for line_index, (i, label_time) in enumerate(frames):
                 yv = field_data[field][i, :].copy()
                 if field == "displacement":
                     yv -= np.mean(yv)
@@ -449,8 +470,8 @@ class GB_dislocations:
                     marker="none",
                     linestyle="-",
                     linewidth=lw,
-                    color=plt.cm.viridis(i / max(1, last_frame)),
-                    label=f"t={int(ts[i])}" + tlab,
+                    color=plt.cm.viridis(line_index / max(1, len(frames) - 1)),
+                    label=f"t={label_time:g}" + tlab,
                 )
             plt.legend(loc='upper left')  # bbox_to_anchor=(1.04, 1) to place legend outside
             plt.ylabel(ylab)
