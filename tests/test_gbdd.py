@@ -171,16 +171,22 @@ def test_plot_field_runs():
         gb.plot_field("flux", nplot=2)
 
 
-@pytest.mark.parametrize("maximum,exponent", [(2.0, -6), (2.e4, -2), (2.e6, 0), (2.e7, 1), (0.0, 0)])
-def test_plot_field_scales_time_labels_by_decade(maximum, exponent):
+@pytest.mark.parametrize("maximum,labels", [
+    (2.0, [r"t=0.00 $\times 10^{-6}$ s", r"t=0.50 $\times 10^{-6}$ s", r"t=2.00 $\times 10^{-6}$ s"]),
+    (2.e4, [r"t=0.00 $\times 10^{-2}$ s", r"t=0.50 $\times 10^{-2}$ s", r"t=2.00 $\times 10^{-2}$ s"]),
+    (1.e6, ["t=0 s", "t=0 s", "t=1 s"]),
+    (2.e6, ["t=0 s", "t=0 s", "t=2 s"]),
+    (2.e7, ["t=0 s", "t=5 s", "t=20 s"]),
+    (2.e10, ["t=0 s", "t=5000 s", "t=20000 s"]),
+    (1.e11, [r"t=0.00 $\times 10^{5}$ s", r"t=0.25 $\times 10^{5}$ s", r"t=1.00 $\times 10^{5}$ s"]),
+    (0.0, ["t=0 s", "t=0 s", "t=0 s"]),
+])
+def test_plot_field_scales_time_labels_by_decade(maximum, labels):
     gb = make_simulated_gb()
     gb.sim_time = np.array([0.0, maximum / 4, maximum])
     with patch("matplotlib.pyplot.show"), patch("matplotlib.pyplot.legend"), patch("matplotlib.pyplot.plot") as plot:
         gb.plot_field("flux", nplot=3)
-    values = [0, 0.5, 2] if maximum else [0, 0, 0]
-    assert [call.kwargs["label"] for call in plot.call_args_list] == [
-        rf"t={value:.2f} $\times 10^{{{exponent}}}$ s" for value in values
-    ]
+    assert [call.kwargs["label"] for call in plot.call_args_list] == labels
 
 
 def test_plot_field_requested_times_override_frame_limits_and_select_nearest():
@@ -191,8 +197,7 @@ def test_plot_field_requested_times_override_frame_limits_and_select_nearest():
         gb.plot_field("flux", times=[19.5, 10.5, 30.0, 0.0], nplot=0, last_frame=-1)
     assert plot.call_count == 4
     assert [call.kwargs["label"] for call in plot.call_args_list] == [
-        r"t=1.95 $\times 10^{1}$ s", r"t=1.05 $\times 10^{1}$ s",
-        r"t=2.00 $\times 10^{1}$ s", r"t=0.00 $\times 10^{1}$ s"
+        "t=19 s", "t=10 s", "t=20 s", "t=0 s"
     ]
     for call, frame in zip(plot.call_args_list, [2, 1, 2, 0]):
         np.testing.assert_allclose(call.args[1], gb.field_data["flux"][frame] * 1.e6)
@@ -205,14 +210,16 @@ def test_plot_field_rejects_invalid_requested_times(times):
         gb.plot_field("flux", times=times)
 
 
-def test_plot_field_requested_time_zero_uses_actual_time_when_not_exact():
+@pytest.mark.parametrize("scale,labels", [
+    (1.0, ["t=0 s", "t=1 s"]),
+    (1.e-3, [r"t=0.25 $\times 10^{-3}$ s", r"t=1.00 $\times 10^{-3}$ s"]),
+])
+def test_plot_field_requested_time_zero_uses_actual_time_when_not_exact(scale, labels):
     gb = make_simulated_gb()
-    gb.sim_time = np.array([0.25e6, 1.e6, 2.e6])
+    gb.sim_time = np.array([0.25e6, 1.e6, 2.e6]) * scale
     with patch("matplotlib.pyplot.show"), patch("matplotlib.pyplot.legend"), patch("matplotlib.pyplot.plot") as plot:
-        gb.plot_field("flux", times=[0.0, 1.06])
-    assert [call.kwargs["label"] for call in plot.call_args_list] == [
-        r"t=0.25 $\times 10^{0}$ s", r"t=1.00 $\times 10^{0}$ s"
-    ]
+        gb.plot_field("flux", times=[0.0, 1.06 * scale])
+    assert [call.kwargs["label"] for call in plot.call_args_list] == labels
 
 def test_plot_pile_up_runs():
     gb = make_simulated_gb()
