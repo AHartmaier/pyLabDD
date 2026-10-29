@@ -117,6 +117,7 @@ pyLabDD requires the following packages as imports:
  - v 1.0: Initial version (with F90 subroutine)
  - v 1.1: Pure Python version (with optional F90 subroutines)
  - v 1.2: Automatic compilation of F90 subroutines with fallback to Python version
+ - v 1.3: Implementation of module for grain boundary absorption and diffusion
 
 ## License
 
