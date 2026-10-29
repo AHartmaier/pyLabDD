@@ -432,7 +432,12 @@ class GB_dislocations:
         time_seconds = time[:nout] * 1.0e-6
         max_time = np.max(np.abs(time_seconds)) if time_seconds.size else 0.0
         time_exponent = int(np.floor(np.log10(max_time))) if max_time > 0 else 0
-        tfac = 10.0**(-time_exponent)
+        if time_exponent > 4 or time_exponent < 0:
+            tlab = rf" $\times 10^{{{time_exponent}}}$ s"
+            tfac = 10.0**(-time_exponent)
+        else:
+            tlab = " s"
+            tfac = 1.0
         ts = time_seconds * tfac
         if times is None:
             dt = max(1, last_frame // nplot)
@@ -448,7 +453,6 @@ class GB_dislocations:
                 i = int(np.argmin(np.abs(time_seconds - requested)))
                 label_time = requested if abs(time_seconds[i] - requested) <= 0.05 * abs(requested) else time_seconds[i]
                 frames.append((i, label_time * tfac))
-        tlab = rf" $\times 10^{{{time_exponent}}}$ s"
         plt.rcParams["font.size"] = fs
         for field in selected_names:
             ysc = 1.0
@@ -466,6 +470,10 @@ class GB_dislocations:
                 yv = field_data[field][i, :].copy()
                 if field == "displacement":
                     yv -= np.mean(yv)
+                if time_exponent > 4 or time_exponent < 0:
+                    lab_ = f"t={label_time:.2f}" + tlab
+                else:
+                    lab_ = f"t={int(label_time)}" + tlab
                 plt.plot(
                     gb_node_pos,
                     yv*ysc,
@@ -473,7 +481,7 @@ class GB_dislocations:
                     linestyle="-",
                     linewidth=lw,
                     color=plt.cm.viridis(line_index / max(1, len(frames) - 1)),
-                    label=f"t={label_time:.2f}" + tlab,
+                    label=lab_,
                 )
             plt.legend(loc='upper left')  # bbox_to_anchor=(1.04, 1) to place legend outside
             plt.ylabel(ylab)
