@@ -171,15 +171,28 @@ def test_plot_field_runs():
         gb.plot_field("flux", nplot=2)
 
 
+@pytest.mark.parametrize("maximum,exponent", [(2.0, -6), (2.e4, -2), (2.e6, 0), (2.e7, 1), (0.0, 0)])
+def test_plot_field_scales_time_labels_by_decade(maximum, exponent):
+    gb = make_simulated_gb()
+    gb.sim_time = np.array([0.0, maximum / 4, maximum])
+    with patch("matplotlib.pyplot.show"), patch("matplotlib.pyplot.legend"), patch("matplotlib.pyplot.plot") as plot:
+        gb.plot_field("flux", nplot=3)
+    values = [0, 0.5, 2] if maximum else [0, 0, 0]
+    assert [call.kwargs["label"] for call in plot.call_args_list] == [
+        rf"t={value:.2f} $\times 10^{{{exponent}}}$ s" for value in values
+    ]
+
+
 def test_plot_field_requested_times_override_frame_limits_and_select_nearest():
     gb = make_simulated_gb()
     gb.sim_time = np.array([0.0, 10.0e6, 20.0e6, 30.0e6])
     gb.field_data["flux"][:3] = np.arange(3)[:, None]
-    with patch("matplotlib.pyplot.show"), patch("matplotlib.pyplot.plot") as plot:
+    with patch("matplotlib.pyplot.show"), patch("matplotlib.pyplot.legend"), patch("matplotlib.pyplot.plot") as plot:
         gb.plot_field("flux", times=[19.5, 10.5, 30.0, 0.0], nplot=0, last_frame=-1)
     assert plot.call_count == 4
     assert [call.kwargs["label"] for call in plot.call_args_list] == [
-        "t=19.5 s", "t=10.5 s", "t=20 s", "t=0 s"
+        r"t=1.95 $\times 10^{1}$ s", r"t=1.05 $\times 10^{1}$ s",
+        r"t=2.00 $\times 10^{1}$ s", r"t=0.00 $\times 10^{1}$ s"
     ]
     for call, frame in zip(plot.call_args_list, [2, 1, 2, 0]):
         np.testing.assert_allclose(call.args[1], gb.field_data["flux"][frame] * 1.e6)
@@ -195,10 +208,10 @@ def test_plot_field_rejects_invalid_requested_times(times):
 def test_plot_field_requested_time_zero_uses_actual_time_when_not_exact():
     gb = make_simulated_gb()
     gb.sim_time = np.array([0.25e6, 1.e6, 2.e6])
-    with patch("matplotlib.pyplot.show"), patch("matplotlib.pyplot.plot") as plot:
+    with patch("matplotlib.pyplot.show"), patch("matplotlib.pyplot.legend"), patch("matplotlib.pyplot.plot") as plot:
         gb.plot_field("flux", times=[0.0, 1.06])
     assert [call.kwargs["label"] for call in plot.call_args_list] == [
-        "t=0.25 s", "t=1 s"
+        r"t=0.25 $\times 10^{0}$ s", r"t=1.00 $\times 10^{0}$ s"
     ]
 
 def test_plot_pile_up_runs():

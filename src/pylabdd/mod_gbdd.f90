@@ -16,13 +16,17 @@
 ! 2026-05-12: v2.2.2: Introduced constant Z for PU-GB interaction normalization (instead of D2)
 ! 2026-05-18: v2.2.3: Pre-existing dislocations can be passed into simulation via pu_out, option for immobilization
 ! 2026-05-30: v2.2.4: Added restart option, if time(1) > 0, and corresponding input check
+! 2026-10-28: v2.2.5: Implemented changes required to make units of Q_slip and Q_diff consistent (Eqs. (16) and (16) 
+!                     in paper version v2.5ff)
 !
 ! STANDARD UNITS:
 ! length: micron
 ! time: microsecond
-! stress: MPa
+! stress: MPa (=1e-12 J/micron^3)
 ! temperature: K
 ! activation energy: J/mol (predifined in value for R)
+! Gibbs energy: J/m (???)
+! flux: mol/(micron^2.microsecond)
 !
 ! Author: Alexander Hartmaier
 ! Institution: Ruhr-Universitaet Bochum, ICAMS
@@ -142,7 +146,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             end do
                 
             ! sim_time step control
-            hh = dtmax*min(cdist/(dt*abs(vmax)), 1.e-12/bdmax, 1.d0)
+            hh = dtmax*min(cdist/(dt*abs(vmax)), 1.e-4/bdmax, 1.d0)  ! time step control for dislocations; before v2.2.5 term was 1.e-12/bdmax
             hh = max(1.d-5, hh)
             if (hh < 0.5d0*dt) then
                 dt = hh
@@ -150,7 +154,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
                 dt = 0.2d0*hh + 0.8d0*dt
             end if
             hh = 0.d0
-            yrk = ypu
+            !yrk = ypu
             do i=1,Npu
                 ypu(i) = ypu(i) + vdis(i)*dt
                 hh = hh + ypu(i)
@@ -160,7 +164,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
             gdpl = (hh-gplast)/dt
             gplast = hh
         else
-            hh = dtmax*min(1.e-11/bdmax, 1.d0)
+            hh = dtmax*min(1.e-3/bdmax, 1.d0)  ! time step control for no dislocations; before v2.2.5 term was 1.e-11/bdmax
             if (hh < 0.5d0*dt) then
                 dt = hh
             else
@@ -171,20 +175,19 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         ttot = ttot + dt
 
         ! dislocation absorption in GB if first dislocation is close 
-        hh = D2
-        do i=1,Npu
-            if (ypu(i) < hh) then
-                hh = ypu(i)
-                ih = i
-            end if
-        end do
-        if (hh < cdist) then
-            do i=ih,Npu
+        ih = minloc(ypu(1:Npu), dim=1)
+        if (ypu(ih) < cdist) then
+            do i=ih,Npu-1
                 ypu(i) = ypu(i+1)
             end do
+            ypu(Npu) = 0.d0
             Npu = Npu-1
             Nabs = Nabs+1
             bfield(Nc) = bfield(Nc) + B
+        end if
+        if (minval(ypu(1:Npu)) < cdist) then
+            ih = minloc(ypu(1:Npu), dim=1)
+            write(*,*) 'Warning: dislocation too close to GB', ih, ypu(ih) 
         end if 
 
         ! calculate diffusion flux in GB 
@@ -253,12 +256,14 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         if ((screen_out).and.(mod(it,nwr)==0)) call print_out()
         
         ! collect sim_time series output for GB nodes, PU dislocations and global quantities
-        if (ttot >= twr(nout+1)) call store_data()  ! increases nout by 1
+        if (nout < maxout) then
+            if (ttot >= twr(nout+1)) call store_data()  ! increases nout by 1
+        end if
         it = it + 1
     end do  ! iteration loop
 
-    ! write final output if iteration stopped early
-    if (nout < maxout) call store_data()
+    ! Always retain the final state, including stops between scheduled outputs.
+    if (ttot > time(nout)) call store_data()
 
 contains
     subroutine init()
@@ -295,19 +300,19 @@ contains
         pi = 4.d0*datan(1.d0)
         M = B/drag ! dislocation mobility B/(microsecond.MPa)
         C = mu/(2*pi*(1-nu)) ! is A in paper
-        R = 8.31446d0 ! gas constant (J/molK)
+        R = 8.31446d0 ! gas constant (J/(mol.K))
         D0 = Dif_gb*exp(-Qact/(R*temp)) ! GB diffusion coefficient
-        Omega = B*B !atomic volume
+        Omega = 7.11d12 ! molar volume (micron^3/mol); (change in v2.2.5, before: B*B !atomic volume)
         dsrc = D2 - 100*B  ! distance required for dislocation source
                 ! special simulation with one immobile PU dislocation
 
         ! write truncated output times into array; new in v2.2.1
         dtwr = (tfin - ttot) / (maxout-1)
-        if (abs(tau0) < 1.d-6) dtwr = dtwr / maxout  ! decressive output frequency for GB diffusion w/o PU
+        !if (abs(tau0) < 1.d-6) dtwr = dtwr / maxout  ! decressive output frequency for GB diffusion w/o PU
         twr(1) = ttot
         do i=2, maxout
             hh = twr(1) + (i-1) * dtwr ! constant output frequency
-            if (abs(tau0) < 1.d-6) hh = hh*i  ! decressive output frequency
+            !if (abs(tau0) < 1.d-6) hh = hh*i  ! decressive output frequency
             k = int(log(hh) / log(10.d0))
             if (k > 8) then
                 k = k - 4  ! round to 5 leading digits if > 1e9
@@ -332,8 +337,8 @@ contains
         cdist = 10.d0*B
         Nc = (Ngbn+1)/2 !center of GB
         gbdx = Dgp/(Ngbn-1) ! size of GB elements
-        omdx = Omega/gbdx
-        DC = D0*delta/(R*temp*gbdx*gbdx) !D delta/ (RT gbdx**2)
+        omdx = delta*Omega/gbdx  ! changed in v2.2.5 (before no factor delta and different meaning of Omega)
+        DC = 1.d-12 * D0/(R*temp*gbdx*gbdx) !D / (RT gbdx**2); changed in v2.2.5 (before included factor delta)
         Upot = 0.d0
         do i=1,Ngbn
             xpos(i) = (i-Nc)*gbdx
@@ -467,7 +472,9 @@ contains
     !===================================
     subroutine store_data()
         ! collect gb data
-        if (ttot-time(nout) < 1.d-6)  return
+        ! Output timing is controlled by twr in the iteration loop. Requiring
+        ! another full dtwr here can skip rounded output times and the final state.
+        if (ttot <= time(nout)) return
         if (nout > maxout) then
             write(*,*) 'Error: nout > maxout'
             stop

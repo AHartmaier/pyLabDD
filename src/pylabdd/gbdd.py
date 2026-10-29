@@ -322,7 +322,7 @@ class GB_dislocations:
                          path: str | None = None,
                          fs:int = 24,
                          lw:int = 2) -> None:
-        """Plot sim_time series of selected global values."""
+        """Plot global values with time scaled in decades of seconds."""
         _, glob_data, _, _, time, nout, _ = self._require_results()
         selected_names = self._normalize_names(names, self.glob_names)
         if not selected_names:
@@ -338,7 +338,10 @@ class GB_dislocations:
             elif path[-1] != "/":
                 path += "/"
 
-        ts = time[:nout] * 1.0e-9
+        ts = time[:nout] * 1.0e-6  # convert microseconds to seconds
+        max_time = np.max(np.abs(ts)) if ts.size else 0.0
+        time_exponent = int(np.floor(np.log10(max_time))) if max_time > 0 else 0
+        ts = ts / 10.0**time_exponent
         ylabel = "data" if len(selected_names) > 1 else selected_names[0]
         colors = ["k", "r", "b", "g", "c", "m", "orange"]
         plt.rcParams["font.size"] = fs
@@ -352,7 +355,7 @@ class GB_dislocations:
                     gv /= max_gv
             elif field == "max_bdot":
                 gv *= 1.0e6
-                ylabel = r"$\dot{b}_{max}$ (1/s)"
+                ylabel = r"$\dot{b}_{max}$ (m/s)"
                 field_semi_log = True
             elif field == "plast_slip_rate":
                 gv *= 1.0e9
@@ -382,7 +385,7 @@ class GB_dislocations:
 
         if len(selected_names) > 1:
             plt.legend()
-        plt.xlabel(r"$t$ (10$^3$ s)")
+        plt.xlabel(rf"$t$ ($10^{{{time_exponent}}}$ s)")
         plt.ylabel(ylabel)
         if file is not None:
             plt.savefig(path + file, dpi=300)
@@ -404,6 +407,7 @@ class GB_dislocations:
         frame among the first ``nout`` results. Its label uses the requested
         time unless the mismatch exceeds 5% of its absolute value, in which
         case the saved time is used. Zero requires an exact match.
+        Labels use the decade of the maximum saved time, in seconds.
         """
         field_data, _, _, gb_node_pos, time, nout, _ = self._require_results()
         selected_names = self._normalize_names(names, self.field_names)
@@ -425,11 +429,14 @@ class GB_dislocations:
             elif path[-1] != "/":
                 path += "/"
 
-        tfac = 1.0e-6
-        ts = time[:nout] * tfac
+        time_seconds = time[:nout] * 1.0e-6
+        max_time = np.max(np.abs(time_seconds)) if time_seconds.size else 0.0
+        time_exponent = int(np.floor(np.log10(max_time))) if max_time > 0 else 0
+        tfac = 10.0**(-time_exponent)
+        ts = time_seconds * tfac
         if times is None:
             dt = max(1, last_frame // nplot)
-            frames = [(i, int(ts[i])) for i in range(0, last_frame, dt)]
+            frames = [(i, ts[i]) for i in range(0, last_frame, dt)]
         else:
             requested_times = np.asarray(times, dtype=float)
             if requested_times.ndim != 1 or not np.all(np.isfinite(requested_times)):
@@ -438,15 +445,10 @@ class GB_dislocations:
                 raise ValueError("No saved frames are available for the requested times.")
             frames = []
             for requested in requested_times:
-                i = int(np.argmin(np.abs(ts - requested)))
-                label_time = requested if abs(ts[i] - requested) <= 0.05 * abs(requested) else ts[i]
-                frames.append((i, label_time))
-        if np.isclose(tfac, 1.0e-6):
-            tlab = " s"
-        elif np.isclose(tfac, 1.0e-9):
-            tlab = r"$\cdot$10$^3$ s"
-        elif np.isclose(tfac, 1.0e-12):
-            tlab = r"$\cdot$10$^6$ s"
+                i = int(np.argmin(np.abs(time_seconds - requested)))
+                label_time = requested if abs(time_seconds[i] - requested) <= 0.05 * abs(requested) else time_seconds[i]
+                frames.append((i, label_time * tfac))
+        tlab = rf" $\times 10^{{{time_exponent}}}$ s"
         plt.rcParams["font.size"] = fs
         for field in selected_names:
             ysc = 1.0
@@ -455,7 +457,7 @@ class GB_dislocations:
                 ylab = r"$u \,/\, B$"
             elif field == "flux":
                 ysc = 1.e6
-                ylab = r"$J$ (1/s)"
+                ylab = r"$J$ (mol $\mu$m$^{-2} \mu$s$^{-1}$)"
             elif field == "bfield":
                 ylab = r"$b\,/\, B$"
             else:
@@ -471,7 +473,7 @@ class GB_dislocations:
                     linestyle="-",
                     linewidth=lw,
                     color=plt.cm.viridis(line_index / max(1, len(frames) - 1)),
-                    label=f"t={label_time:g}" + tlab,
+                    label=f"t={label_time:.2f}" + tlab,
                 )
             plt.legend(loc='upper left')  # bbox_to_anchor=(1.04, 1) to place legend outside
             plt.ylabel(ylab)
@@ -581,7 +583,7 @@ class GB_dislocations:
 
         metadata = {
             "title": "GB dislocation dynamics",
-            "version": "2.2.4",
+            "version": "2.2.5",
             "author": "Alexander Hartmaier",
             "institution": "Ruhr-Universitaet Bochum, ICAMS",
             "copyright": "Copyright (c) 2026 by the Author. All rights reserved.",
