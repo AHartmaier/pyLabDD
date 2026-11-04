@@ -14,6 +14,57 @@ def test_init_sets_basic_parameters():
     assert gb.field_data is None
 
 
+@pytest.mark.parametrize("kwargs", [{}, {"Z": 1.0}, {"lambda_": 0.008},
+                                    {"Z": 3.0, "lambda_": 0.02}])
+def test_regularization_parameters_reach_backend_and_hdf5(tmp_path, kwargs):
+    gb = GB_dislocations(Ngbn=5, maxdis=4, maxout=10, **kwargs)
+    expected_Z = kwargs.get("Z", 2.0)
+    expected_width = kwargs.get("lambda_", expected_Z / 2 * np.exp(-2 * np.pi * (1 - gb.nu)))
+    gb.calc_gbdd = fake_calc_gbdd
+    gb.run_sim()
+    np.testing.assert_allclose(gb._parameter_vector()[-2:], [expected_Z, expected_width])
+    path = gb.save_hdf5(tmp_path / "regularization.h5")
+    import h5py
+    with h5py.File(path) as h5:
+        assert h5["metadata"].attrs["Z"] == pytest.approx(expected_Z)
+        assert h5["metadata"].attrs["lambda"] == pytest.approx(expected_width)
+    loaded = GB_dislocations(from_file=path)
+    assert loaded.Z == pytest.approx(expected_Z)
+    assert loaded.lambda_ == pytest.approx(expected_width)
+    assert (loaded._lambda_override is None) == ("lambda_" not in kwargs)
+
+
+@pytest.mark.parametrize("name", ["Z", "lambda_"])
+@pytest.mark.parametrize("value", [0, -1, float("nan"), float("inf")])
+def test_regularization_rejects_invalid_lengths(name, value):
+    with pytest.raises(ValueError, match="positive and finite"):
+        GB_dislocations(**{name: value})
+
+
+def test_automatic_width_tracks_reference_distance_and_poisson_ratio():
+    gb = GB_dislocations()
+    gb.Z = 1.0
+    gb.nu = 0.25
+    assert gb.lambda_ == pytest.approx(0.5 * np.exp(-2 * np.pi * 0.75))
+    gb.lambda_ = 0.01
+    gb.Z = 3.0
+    assert gb.lambda_ == 0.01
+    gb.lambda_ = None
+    assert gb.lambda_ == pytest.approx(1.5 * np.exp(-2 * np.pi * 0.75))
+
+
+def test_legacy_hdf5_defaults_regularization(tmp_path):
+    import h5py
+    gb = make_simulated_gb()
+    path = gb.save_hdf5(tmp_path / "legacy.h5")
+    with h5py.File(path, "a") as h5:
+        for name in ("Z", "lambda", "lambda_auto"):
+            del h5["metadata"].attrs[name]
+    loaded = GB_dislocations(from_file=path)
+    assert loaded.Z == 2.0
+    assert loaded.lambda_ == pytest.approx(np.exp(-2 * np.pi * (1 - loaded.nu)))
+
+
 @pytest.mark.parametrize("kwargs", [
     {"Ngbn": 0},
     {"maxdis": 0},
@@ -169,6 +220,26 @@ def test_plot_field_runs():
     gb = make_simulated_gb()
     with patch("matplotlib.pyplot.show"):
         gb.plot_field("flux", nplot=2)
+
+def test_plot_field_legacy_bfield_keeps_coefficient_units():
+    gb = make_simulated_gb()
+    del gb.field_data["beta"]
+    gb.field_data["bfield"][:] = 2.0
+    with patch("matplotlib.pyplot.show"), patch("matplotlib.pyplot.legend"), \
+            patch("matplotlib.pyplot.plot") as plot, patch("matplotlib.pyplot.ylabel") as ylabel:
+        gb.plot_field("bfield", nplot=1)
+    np.testing.assert_allclose(plot.call_args.args[1], 2.0)
+    ylabel.assert_called_once_with(r"$b\,/\, B$")
+
+
+def test_restart_accepts_legacy_five_field_frame():
+    gb = make_simulated_gb()
+    gb.calc_gbdd = fake_restart_calc_gbdd
+    frame = np.zeros((5, gb.Ngbn))
+    frame[3] = np.arange(gb.Ngbn)
+    gb.run_sim(vout=frame, pudis=np.array([]), r_time=8.0)
+    np.testing.assert_allclose(gb.vout[0, 3], frame[3])
+    assert gb.vout.shape[1] == 6
 
 
 @pytest.mark.parametrize("maximum,labels", [

@@ -19,6 +19,11 @@ class GB_dislocations:
     ``pylabdd.mod_gbdd.calc_gbdd``. This class prepares the Fortran-order
     arrays, stores the returned data, and provides basic plotting helpers.
 
+    ``Z`` is the elastic reference distance in microns (default 2).
+    ``lambda_`` optionally sets the Cauchy width in microns. When omitted or
+    set to None, it follows Z/2 * exp(-2*pi*(1-nu)); an explicit width overrides
+    this self-energy matching relation. Both effective lengths are saved to HDF5.
+
     STANDARD UNITS:
     length: micron
     time: microsecond
@@ -41,6 +46,9 @@ class GB_dislocations:
         dtmax: float = 400.0,
         screenout: bool = False,
         from_file: str | None = None,
+        *,
+        lambda_: float | None = None,
+        Z: float = 2.0,
         **kwargs: Any,
     ) -> None:
 
@@ -53,8 +61,9 @@ class GB_dislocations:
             "flux",
             "dGdb",
             "bdot",
-            "bfield",
-            "displacement",
+            "bfield",       # raw b_i/B coefficients, retained for restart
+            "displacement", # reconstructed u/B
+            "beta",         # reconstructed beta/B, in inverse microns
         ]
         self.pu_names: list[str] = [
             "position",
@@ -84,6 +93,8 @@ class GB_dislocations:
             "drag",
             "Dif_gb",
             "fcrit",
+            "Z",
+            "lambda_",
         )
 
         self.dis_names: list[str] = ["position", "force", "velocity"]
@@ -120,6 +131,10 @@ class GB_dislocations:
                 if k in self.GBDD_PARAM_KEYS:
                     setattr(self, k, v)
                     print(f'Set {k}: {v}')
+
+            self.Z = float(Z)  # reference distance in microns
+            self.lambda_ = lambda_  # None derives the width from Z and nu
+            self._validate_regularization()
 
             if self.Ngbn <= 1:
                 raise ValueError("Ngbn must be larger than 1.")
@@ -169,7 +184,8 @@ class GB_dislocations:
             ``vout[..., 3, :]`` is used as start condition by the Fortran
             routine. For convenience, either a full array with shape
             ``(nout, nfield, Ngbn)`` or a single frame with shape
-            ``(nfield, Ngbn)`` is accepted.
+            ``(nfield, Ngbn)`` is accepted. Legacy five-field frames remain
+            valid; channel 3 stores the raw b_i/B coefficients used for restart.
         r_time
             Restart flag and time offset. If ``None``, a new simulation is
             started. If positive, a restart is performed and ``vout`` and
@@ -189,6 +205,10 @@ class GB_dislocations:
         """
         
         do_restart = r_time is not None
+
+        if "beta" not in self.field_names:
+            self.field_names.append("beta")
+        self.nfield = len(self.field_names)
 
         self.sim_time = np.zeros(self.maxout, dtype=np.float64, order="F")
         self.gb_node_pos = np.zeros(self.Ngbn, dtype=np.float64, order="F")
@@ -210,7 +230,12 @@ class GB_dislocations:
             if nabs is not None and nabs < 0:
                 raise ValueError("nabs must be non-negative.")
             self.sim_time[0] = r_time
-            self.vout[0, :, :] = vout
+            restart_frame = np.asarray(vout, dtype=np.float64)
+            if restart_frame.shape == (5, self.Ngbn):
+                # Older frames do not contain the reconstructed density channel.
+                self.vout[0, :5, :] = restart_frame
+            else:
+                self.vout[0, :, :] = restart_frame
         elif vout is not None:
             raise ValueError("vout is only used for restarts; pass sim_time > 0 as restart flag.")
 
@@ -408,6 +433,9 @@ class GB_dislocations:
         time unless the mismatch exceeds 5% of its absolute value, in which
         case the saved time is used. Zero requires an exact match.
         Labels use the decade of the maximum saved time, in seconds.
+        ``displacement`` is reconstructed u/B. For new results, ``bfield``
+        and ``beta`` both plot the reconstructed beta/B in inverse microns;
+        the raw b_i/B coefficients remain in ``field_data["bfield"]``.
         """
         field_data, _, _, gb_node_pos, time, nout, _ = self._require_results()
         selected_names = self._normalize_names(names, self.field_names)
@@ -462,12 +490,15 @@ class GB_dislocations:
             elif field == "flux":
                 ysc = 1.e6
                 ylab = r"$J$ (mol $\mu$m$^{-2} \mu$s$^{-1}$)"
+            elif field == "beta": # or (field == "bfield" and "beta" in field_data):
+                ylab = r"$\beta\,/\, B$ ($\mu$m$^{-1}$)"
             elif field == "bfield":
                 ylab = r"$b\,/\, B$"
             else:
                 ylab = field
             for line_index, (i, label_time) in enumerate(frames):
-                yv = field_data[field][i, :].copy()
+                output_field = field  #"beta" if field == "bfield" and "beta" in field_data else field
+                yv = field_data[output_field][i, :].copy()
                 if field == "displacement":
                     yv -= np.mean(yv)
                 if time_exponent > 4 or time_exponent < 0:
@@ -589,15 +620,20 @@ class GB_dislocations:
         pu_out = pu_out[:nout, :, :self.npu_max]
         globout = globout[:nout, :]
 
+        self._validate_regularization()
         metadata = {
             "title": "GB dislocation dynamics",
-            "version": "2.2.5",
+            "version": "2.2.6",
             "author": "Alexander Hartmaier",
             "institution": "Ruhr-Universitaet Bochum, ICAMS",
             "copyright": "Copyright (c) 2026 by the Author. All rights reserved.",
             "license": "CC BY 4.0",
             "shear_modulus": self.mu,
             "poisson_ratio": self.nu,
+            "Z": self.Z,
+            "lambda": self.lambda_,
+            "lambda_auto": self._lambda_override is None,
+            "regularization_length_unit": "micron",
             "dislocation_drag": self.drag,
             "burgers_vector_norm": self.B,
             "gb_cell_size": self.Dgp / (self.Ngbn - 1),
@@ -637,6 +673,10 @@ class GB_dislocations:
 
             gb_group = h5.create_group("gb")
             gb_group.attrs["field_names"] = np.asarray(self.field_names, dtype="S")
+            if "beta" in self.field_names:
+                gb_group.attrs["displacement_representation"] = "Cauchy reconstructed u/B"
+                gb_group.attrs["bfield_representation"] = "nodal coefficients b_i/B (restart state)"
+                gb_group.attrs["beta_units"] = "1/micron (beta/B)"
             gb_group.create_dataset("fields", data=vout, compression="gzip")
 
             #for i, name in enumerate(self.field_names):
@@ -722,6 +762,10 @@ class GB_dislocations:
         # constitutive parameters
         self.mu = metadata["shear_modulus"]
         self.nu = metadata["poisson_ratio"]
+        self.Z = float(metadata.get("Z", 2.0))
+        self.lambda_ = (None if metadata.get("lambda_auto", "lambda" not in metadata)
+                        else metadata["lambda"])
+        self._validate_regularization()
         self.B = metadata["burgers_vector_norm"]
         self.delta = metadata["gb_thickness"]
         self.Qact = metadata["activation_energy"]
@@ -732,6 +776,7 @@ class GB_dislocations:
         else:
             self.fcrit = None
         # set convenience dicts
+        self.nfield = len(self.field_names)
         self.field_data = {
             name: self.vout[:, i, :].copy()
             for i, name in enumerate(self.field_names)
@@ -756,7 +801,24 @@ class GB_dislocations:
             return [names]
         return list(names)
 
+    @property
+    def lambda_(self) -> float:
+        """Cauchy width in microns; None on assignment restores self-energy matching."""
+        if self._lambda_override is None:
+            return float(self.Z / 2 * np.exp(-2 * np.pi * (1 - self.nu)))
+        return self._lambda_override
+
+    @lambda_.setter
+    def lambda_(self, value: float | None) -> None:
+        self._lambda_override = None if value is None else float(value)
+
+    def _validate_regularization(self) -> None:
+        for name, value in (("Z", self.Z), ("lambda_", self.lambda_)):
+            if not np.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be positive and finite (in microns).")
+
     def _parameter_vector(self) -> np.ndarray:
+        self._validate_regularization()
         return np.asarray(
             [getattr(self, key) for key in self.GBDD_PARAM_KEYS],
             dtype=np.float64,
