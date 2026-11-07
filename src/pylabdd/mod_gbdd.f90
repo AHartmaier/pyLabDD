@@ -18,6 +18,7 @@
 ! 2026-05-30: v2.2.4: Added restart option, if time(1) > 0, and corresponding input check
 ! 2026-10-28: v2.2.5: Implemented changes required to make units of Q_slip and Q_diff consistent (Eqs. (16) and (16) 
 !                     in paper version v2.5ff)
+! 2026-11-01: v2.2.6: Implemented driving force dGdb according to smooth GB distribution formulated in paper version v2.6ff
 !
 ! STANDARD UNITS:
 ! length: micron
@@ -36,6 +37,7 @@
 subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, niter, dtmax, &
     it, Npu_max, nout, Nabs, time, xpos, vout, pu_out, globout, screen_out)
 
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
     implicit none
 
     integer, parameter :: name_len = 16
@@ -47,7 +49,11 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     integer, parameter :: IDX_DRAG   = 6
     integer, parameter :: IDX_DIFGB  = 7
     integer, parameter :: IDX_FCRIT  = 8
-    integer, parameter :: N_GBDD_PARAMS = 8
+    ! Legacy callers may supply eight parameters. Optional entries 9 and 10
+    ! specify Z and lambda in microns; otherwise use the matched default width.
+    integer, parameter :: IDX_Z      = 9
+    integer, parameter :: IDX_LAMBDA = 10
+    integer, parameter :: N_GBDD_PARAMS = 10
 
     logical, intent(in) :: screen_out  ! write output on screen
     integer, intent(in) :: nparams  ! number of constitutive parameters
@@ -68,12 +74,13 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     real(8), intent(inout) :: time(:), pu_out(:, :, :), vout(:, :, :), globout(:, :)
     real(8), intent(out) ::  xpos(:)
     real(8) :: bfield(Ngbn), ypu(maxdis), fdis(maxdis), vdis(maxdis)
-    real(8) :: M, C, DC, B, mu, nu, Omega, pi, gbdx, drag
-    real(8) :: R, delta, Dif_gb, D0, Qact, df, fcrit
+    real(8) :: M, C, DC, B, mu, nu, V_mol, pi, gbdx, drag
+    real(8) :: R, delta, Dif_gb, D0, Qact, df, fcrit, lambda, Zval, lam_sq4, Z_sq
     real(8) :: frk(maxdis), yrk(maxdis), Jf(Ngbn), bdot(Ngbn)
     real(8) :: dGdb(Ngbn), Upot(Ngbn, Ngbn)
     real(8) :: dt, ttot, eps
     real(8) :: gdpl, gplast, vmax, bdmax
+    real(8) :: Dy, DZ
     real(8) :: epsmax, edtot, cdist, dsrc
     real(8) :: twr(1000), dtwr  ! sim_time interval (microseconds) for sim_time series output, std: 20d6
     real(8) :: hh, hh1, hh2, hx2, hy2, hr2, hxl2, omdx
@@ -92,7 +99,7 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
     if (maxout < 2) then
         error stop "maxout must be larger than 1"
     end if
-    if (nparams < N_GBDD_PARAMS) then
+    if (nparams < IDX_FCRIT) then
         error stop "GBDD parameter vector is too short."
     end if
     if (nparams > N_GBDD_PARAMS) then
@@ -120,14 +127,14 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         end if
         if (hh < dsrc) then
             Npu = Npu + 1
+            if (Npu > maxdis) then
+                write(*,*) 'Npu greater maxdis'
+                stop
+            end if
             ypu(Npu) = D2
             call tau_GB()  ! calculate force on dislocations
             if (fdis(Npu) > -fcrit) Npu = Npu - 1  ! nucleation failed if test dislocation is pushed out
         end if 
-        if (Npu > maxdis) then
-            write(*,*) 'Npu greater maxdis'
-            stop
-        end if
         Npu_max = max(Npu_max, Npu)
 
         ! move dislocations 
@@ -174,41 +181,49 @@ subroutine calc_gbdd(params, nparams, tau0, temp, Dgp, D2, Ngbn, maxdis, tfin, n
         end if 
         ttot = ttot + dt
 
-        ! dislocation absorption in GB if first dislocation is close 
-        ih = minloc(ypu(1:Npu), dim=1)
-        if (ypu(ih) < cdist) then
-            do i=ih,Npu-1
-                ypu(i) = ypu(i+1)
-            end do
-            ypu(Npu) = 0.d0
-            Npu = Npu-1
-            Nabs = Nabs+1
-            bfield(Nc) = bfield(Nc) + B
-        end if
-        if (minval(ypu(1:Npu)) < cdist) then
+        ! dislocation absorption in GB if first dislocation is close
+        if (Npu > 0) then
             ih = minloc(ypu(1:Npu), dim=1)
-            write(*,*) 'Warning: dislocation too close to GB', ih, ypu(ih) 
-        end if 
+            if (ypu(ih) < cdist) then
+                do i=ih,Npu-1
+                    ypu(i) = ypu(i+1)
+                end do
+                ypu(Npu) = 0.d0
+                Npu = Npu-1
+                Nabs = Nabs+1
+                bfield(Nc) = bfield(Nc) + B
+            end if
+            if ((Npu>0).and.(minval(ypu(1:Npu)) < cdist)) then
+                ih = minloc(ypu(1:Npu), dim=1)
+                write(*,*) 'Warning: dislocation too close to GB', ih, ypu(ih) 
+            end if 
+        end if
 
         ! calculate diffusion flux in GB 
-        do i=1,Ngbn 
+        do i=1,Ngbn
             hh1 = 0.
             hh2 = 0.
             hx2 = xpos(i)*xpos(i)
             ! contribution of GB elastic field: U(x_i, x_j)
             do k=1,Ngbn
-               hh1 = hh1 + bfield(k)*Upot(i,k)  ! Upot(i,i) = 0
+               hh1 = hh1 + bfield(k)*Upot(i,k)
             end do
             ! contribution of pile-up/GB dis interaction: V(x_i, y_j)
             do k=1,Npu
-                hy2 = ypu(k)*ypu(k)
+                !hy2 = ypu(k)*ypu(k)
                 !hy2 = hy2*hy2
-                hr2 = hx2 + hy2
-                hxl2 = hx2 + 4.d0 ! D2*D2
-                hh2 = hh2 + 0.5*log(hr2/hxl2) + hx2/hr2 - hx2/hxl2  ! new version, v2.2.0
+                !hr2 = hx2 + hy2
+                Dy = hx2 + (ypu(k) + lambda)**2
+                DZ = hx2 + (Zval + lambda)**2
+                !hxl2 = hx2 + Z_sq
+                !hh2 = hh2 + 0.5*log(hr2/hxl2) + hx2/hr2 - hx2/hxl2  ! new version, v2.2.0
+                hh2 = hh2 + ypu(k)*(ypu(k) + lambda)/Dy - Zval*(Zval + lambda)/DZ - 0.5d0*log(Dy/DZ)
             end do
-            dGdb(i) = mu*bfield(i) - df*C*hh1 - C*B*hh2  ! new in v2.1.2
+            !dGdb(i) = mu*bfield(i) - df*C*hh1 - C*B*hh2  ! new in v2.1.2, replaced after version 2.2.5
+            dGdb(i) = C*(B*hh2 - hh1)  ! new in v2.2.6
         end do
+        !dGdb(1) = 0.d0
+        !dGdb(Ngbn) = 0.d0 ! new in v2.2.6
         if ((mod(it,1000)==0).and.(dt>dtmax*0.9)) then
             df = min(df*(1.d0+dtmax*1.d-7), 1.d0)  ! gradually increase damping factor to 1 (no damping)
         end if
@@ -302,7 +317,7 @@ contains
         C = mu/(2*pi*(1-nu)) ! is A in paper
         R = 8.31446d0 ! gas constant (J/(mol.K))
         D0 = Dif_gb*exp(-Qact/(R*temp)) ! GB diffusion coefficient
-        Omega = 7.11d12 ! molar volume (micron^3/mol); (change in v2.2.5, before: B*B !atomic volume)
+        V_mol = 7.11d12 ! molar volume (micron^3/mol); (change in v2.2.5, before: B*B !atomic volume)
         dsrc = D2 - 100*B  ! distance required for dislocation source
                 ! special simulation with one immobile PU dislocation
 
@@ -337,16 +352,33 @@ contains
         cdist = 10.d0*B
         Nc = (Ngbn+1)/2 !center of GB
         gbdx = Dgp/(Ngbn-1) ! size of GB elements
-        omdx = delta*Omega/gbdx  ! changed in v2.2.5 (before no factor delta and different meaning of Omega)
+        omdx = delta*V_mol/gbdx  ! changed in v2.2.5 (before no factor delta and Omega)
         DC = 1.d-12 * D0/(R*temp*gbdx*gbdx) !D / (RT gbdx**2); changed in v2.2.5 (before included factor delta)
+        Zval = 2.d0
+        if (nparams >= IDX_Z) Zval = params(IDX_Z)
+        if (.not. ieee_is_finite(Zval) .or. Zval <= 0.d0) then
+            error stop "Z must be positive and finite."
+        end if
+        Z_sq = Zval*Zval  ! Z: distance at which elastic interaction energy is zero, Z_sq = Z*Z
+        lambda = 0.5d0*Zval*exp(-2.d0*pi*(1.d0-nu))
+        if (nparams >= IDX_LAMBDA) lambda = params(IDX_LAMBDA)
+        if (.not. ieee_is_finite(lambda) .or. lambda <= 0.d0) then
+            error stop "lambda must be positive and finite."
+        end if
+        lam_sq4 = 4.d0*lambda*lambda
         Upot = 0.d0
         do i=1,Ngbn
-            xpos(i) = (i-Nc)*gbdx
-            do k=1, i-1
-                Upot(i, k) = log((i-k)*gbdx/2.d0)
-            end do
-            do k=i+1, Ngbn
-                Upot(i, k) = log((k-i)*gbdx/2.d0)
+            xpos(i) = (i-Nc)*gbdx  ! initialize nodal positions used for GB potential calculations
+            ! older version 2.2.5 and before
+            !do k=1, i-1
+            !    Upot(i, k) = log((i-k)*gbdx/2.d0)
+            !end do
+            !do k=i+1, Ngbn
+            !    Upot(i, k) = log((k-i)*gbdx/2.d0)
+            !end do
+            ! new since version 2.2.6
+            do k=1,Ngbn
+                Upot(i, k) = 0.5*log(((k-i)**2*gbdx*gbdx + lam_sq4)/Z_sq)
             end do
         end do
 
@@ -415,16 +447,8 @@ contains
         if (Npu > 0) pu_out(1, 2, :Npu) = fdis(:Npu)
         if (Npu > 0) pu_out(1, 3, :Npu) = vdis(:Npu)
 
-        ! store initial values for GB nodes in output array
-        hh = 0.d0
-        do i=1,Ngbn
-            vout(1,1,i) = Jf(i)
-            vout(1,2,i) = dGdb(i)
-            vout(1,3,i) = bdot(i)/B
-            vout(1,4,i) = bfield(i)/B
-            vout(1,5,i) = hh
-            hh = hh + bfield(i)/B
-        end do
+        ! Store the coefficients needed for restart and reconstructed observables.
+        call store_gb_frame(1)
         nout = 1  ! points to first output position
         it = 1  ! iteration counter
         globout(1, 1) = it
@@ -453,14 +477,13 @@ contains
         do j=1,Npu 
             hh = 0.d0
             hy = ypu(j)
-            hy2 = hy*hy
+            hy2 = (hy+lambda)**2
             do i=1,Npu
                 if (j==i) cycle
                 hh = hh + B/(hy-ypu(i))
             end do
             do i=1,Ngbn
-                hx2 = xpos(i)
-                hx2 = hx2*hx2
+                hx2 = xpos(i)*xpos(i)
                 hr2 = hx2 + hy2
                 hh = hh + bfield(i)*hy*(hy2 - hx2)/(hr2*hr2)  ! new in v2.2.0
             end do 
@@ -486,15 +509,7 @@ contains
         end if
 
         time(nout) = ttot
-        hh = 0.d0
-        do i=1,Ngbn
-            vout(nout,1,i) = Jf(i)
-            vout(nout,2,i) = dGdb(i)
-            vout(nout,3,i) = bdot(i)/B
-            vout(nout,4,i) = bfield(i)/B
-            vout(nout,5,i) = hh
-            hh = hh + bfield(i)/B
-        end do
+        call store_gb_frame(nout)
         ! collect dislocation positions
         pu_out(nout, 1, :Npu) = ypu(:Npu)
         pu_out(nout, 2, :Npu) = fdis(:Npu)
@@ -521,6 +536,30 @@ contains
 
     end subroutine store_data
     !===================================
+
+    subroutine store_gb_frame(frame)
+        ! Channel 4 retains b_i/B for restart. Channels 5 and 6 are u/B and
+        ! beta/B (1/micron), evaluated from the same Cauchy reconstruction.
+        integer, intent(in) :: frame
+        integer :: inode, knode
+        real(8) :: distance, displacement, density
+
+        do inode=1,Ngbn
+            displacement = 0.d0
+            density = 0.d0
+            do knode=1,Ngbn
+                distance = xpos(inode)-xpos(knode)
+                displacement = displacement + bfield(knode)*(0.5d0 + atan(distance/lambda)/pi)
+                density = density + bfield(knode)*lambda/(pi*(distance*distance + lambda*lambda))
+            end do
+            vout(frame,1,inode) = Jf(inode)
+            vout(frame,2,inode) = dGdb(inode)
+            vout(frame,3,inode) = bdot(inode)/B
+            vout(frame,4,inode) = bfield(inode)/B
+            vout(frame,5,inode) = displacement/B
+            if (nfields >= 6) vout(frame,6,inode) = density/B
+        end do
+    end subroutine store_gb_frame
 
     subroutine print_out()
         write(*,*) "Iteration, dt, ttot(s), max(bdot), sum(bfield), Npu, Nabs, max(y)", &
