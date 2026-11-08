@@ -23,7 +23,6 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependecies
       run: |
-        conda --version
         which python
         python -m pip install .
         python -m pip install pytest
@@ -31,4 +30,3 @@ jobs:
     - name: Run tests
       run: |
         pytest tests -v
-
