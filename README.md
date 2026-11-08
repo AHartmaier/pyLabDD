@@ -38,6 +38,7 @@ Python environment supporting the package installer for python [pip](https://pyp
 $ pip install pylabdd
 ```
 
+**Note:** Building the h5py dependency via pip may fail on some systems. Try `conda install h5py` in such cases.
 
 Alternatively, the complete repository can be cloned and installed locally. It is recommended to create a conda environment before installation. This can be done by the following the command line instructions
 
@@ -73,9 +74,9 @@ Available notebooks with tutorials on the dislocation dynamics method and the Ta
 The Jupyter notebooks of the pyLabDD tutorials are also available on Binder 
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/AHartmaier/pyLabDD.git/main)
 
-## HDF5 result catalog
+## HDF5 result catalog - *experimental*
 
-`HDF5Catalog` extracts attributes and dataset structure without loading the
+`HDF5Catalog` automatically extracts attributes and dataset structure from all HDF5 result files in a given subfolder structure without loading the
 large numerical arrays. It can return a Python dictionary, maintain a
 searchable SQLite database, and plot direct datasets or packed named fields.
 
@@ -111,6 +112,7 @@ pyLabDD requires the following packages as imports:
  - [NumPy](http://numpy.scipy.org) for array handling
  - [MatPlotLib](https://matplotlib.org/) for graphical output
  - [fmodpy](https://pypi.org/project/fmodpy/) for embedding of faster Fortran subroutines for PK force calculation (optional)
+ - [h5py](https://www.h5py.org) for saving of result/restart files and handling of result catalog
 
 ## Version history
 
