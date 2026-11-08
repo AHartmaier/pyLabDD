@@ -34,6 +34,7 @@ mod_gbdd/
 mod_gbdd_OLD
 Archive/
 data/
+notebooks_local/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
