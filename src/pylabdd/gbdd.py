@@ -134,6 +134,8 @@ class GB_dislocations:
 
             self.Z = float(Z)  # reference distance in microns
             self.lambda_ = lambda_  # None derives the width from Z and nu
+            print(f'Set lambda_: {lambda_}')
+            print(f'Set Z: {Z}')
             self._validate_regularization()
 
             if self.Ngbn <= 1:
@@ -168,6 +170,7 @@ class GB_dislocations:
         r_time: float | None = None,
         niter: int | None = None,
         nabs: int | None = None,
+        global_state: FloatArray | None = None,
     ) -> None:
         """
         Run the Fortran GB-dislocation simulation and store the results.
@@ -198,6 +201,11 @@ class GB_dislocations:
             Number of previously absorbed dislocations. During restart this is
             passed to the Fortran routine through the initial global output row
             so plastic-slip state and returned metadata continue consistently.
+
+        global_state
+            Optional finite saved global row in glob_names order for a restart.
+            Preserves timestep, cumulative slip and slip rate. Its absorbed
+            count must agree with explicit nabs when both are provided.
 
         Result arrays keep length ``maxout``. Valid output is in
         ``[:self.nout]``; during restart, index 0 stores the restart state and
@@ -258,10 +266,22 @@ class GB_dislocations:
             self.niter = int(niter)
 
         restart_pu_frame = self.pu_out[0, :, :].copy() if do_restart else None
+        if global_state is not None:
+            row = np.asarray(global_state, dtype=np.float64)
+            if not do_restart:
+                raise ValueError("global_state is only used for restarts.")
+            if row.shape != (self.nglob,) or not np.all(np.isfinite(row)):
+                raise ValueError(f"global_state must be a finite row of shape ({self.nglob},).")
+            if row[1] <= 0 or row[10] < 0 or row[10] != round(row[10]):
+                raise ValueError("global_state requires a positive timestep and nonnegative integer n_absorbed.")
+            if nabs is not None and row[10] != nabs:
+                raise ValueError("global_state n_absorbed disagrees with nabs.")
+            self.globout[0] = row
         if do_restart and nabs is not None:
             self.globout[0, 10] = nabs
         pv = self._parameter_vector()
         npv = len(pv)
+        start_time = float(self.sim_time[0])
         it_done, npu_max, nout, nabs_out, time_out, xout, v_out, pu_out, globout = self.calc_gbdd(
             pv,
             npv,
@@ -289,6 +309,14 @@ class GB_dislocations:
             raise ValueError(f"Fortran returned invalid nout={nout_i}.")
         if not 0 <= npu_max_i <= self.maxdis:
             raise ValueError(f"Fortran returned invalid npu_max={npu_max_i}.")
+
+        # Older compiled backends clear time(1) during initialization. Preserve
+        # the actual restart time here as well as in the Fortran source, and
+        # correct the first interval average computed with that cleared time.
+        if do_restart and nout_i:
+            time_out[0] = start_time
+            if nout_i > 1 and time_out[1] > start_time:
+                globout[1, 3] = (globout[1, 4] - globout[0, 4]) / (time_out[1] - start_time)
 
         self.field_data = {
             name: v_out[:, i, :].copy() for i, name in enumerate(self.field_names)

@@ -189,6 +189,56 @@ def fake_bad_nout(*args):
     time_out, xout, vout, pu_out, globout = args[-5:]
     return 0, 0, 999999, 1, time_out, xout, vout, pu_out, globout
 
+
+def test_restart_corrects_time_and_first_average_from_legacy_backend():
+    def legacy_backend(*args):
+        result = fake_restart_calc_gbdd(*args)
+        time_out, globout = result[4], result[8]
+        time_out[0] = 0.0
+        globout[0, 4] = 2.0
+        globout[1, 4] = 5.0
+        globout[1, 3] = 3.0 / time_out[1]
+        return result
+
+    gb = GB_dislocations(Ngbn=5, maxdis=4, maxout=10)
+    gb.calc_gbdd = legacy_backend
+    gb.run_sim(pudis=np.array([1., 2.]), vout=np.zeros((6, 5)),
+               r_time=60000000.000400998, nabs=27)
+    assert gb.sim_time[0] == 60000000.000400998
+    assert gb.globout[1, 3] == pytest.approx(3.0)
+
+
+def test_restart_passes_saved_global_state_to_backend():
+    gb = GB_dislocations(Ngbn=5, maxdis=4, maxout=10)
+    row = np.zeros(12)
+    row[[1, 2, 4, 9, 10]] = [.25, 1.e-8, .05, 2, 27]
+
+    def backend(*args):
+        np.testing.assert_array_equal(args[-2][0], row)
+        return fake_restart_calc_gbdd(*args)
+
+    gb.calc_gbdd = backend
+    gb.run_sim(pudis=np.array([1., 2.]), vout=np.zeros((6, 5)),
+               r_time=60.e6, nabs=27, global_state=row)
+
+
+@pytest.mark.parametrize("kind", ["shape", "nan", "counter", "dt"])
+def test_restart_rejects_invalid_global_state(kind):
+    gb = GB_dislocations(Ngbn=5, maxdis=4, maxout=10)
+    row = np.zeros(12)
+    row[1], row[10] = 1., 27.
+    if kind == "shape":
+        row = row[:5]
+    elif kind == "nan":
+        row[4] = np.nan
+    elif kind == "counter":
+        row[10] = 28.
+    else:
+        row[1] = 0.
+    with pytest.raises(ValueError, match="global_state"):
+        gb.run_sim(pudis=np.array([1., 2.]), vout=np.zeros((6, 5)),
+                   r_time=1., nabs=27, global_state=row)
+
 def fake_bad_npu(*args):
     time_out, xout, vout, pu_out, globout = args[-5:]
     return 0, 999999, 1, 1, time_out, xout, vout, pu_out, globout

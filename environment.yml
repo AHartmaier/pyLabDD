@@ -8,6 +8,7 @@ dependencies:
   - scipy
   - matplotlib
   - gfortran
+  - fmodpy
   - pytest
   - ipython
   - ipykernel

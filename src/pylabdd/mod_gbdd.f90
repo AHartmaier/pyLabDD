@@ -439,6 +439,7 @@ contains
         end if
         if ((is_restart).and.(Npu > 0).and.(maxval(abs(fdis(:Npu))) <= 0.d0)) call tau_GB()
         time = 0.d0
+        time(1) = ttot  ! retain the restart state's physical time
         globout = 0.d0
         pu_out = 0.d0
         vout = 0.d0

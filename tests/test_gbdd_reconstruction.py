@@ -48,6 +48,7 @@ if (trim(mode)=='restart') then
 end if
 call calc_gbdd(params(:nparams),nparams,0.d0,600.d0,.1d0,1.d0,7,4,time(1)+1.d-5,100,1.d-6, &
     it,npu,nout,nabs,time,xpos,fields,pu,glob,.false.)
+write(*,*) 'START_TIME',time(1)
 do frame=1,nout
     do node=1,7
         write(*,*) 'ROW',frame,node,xpos(node),fields(frame,4:channels,node)
@@ -76,6 +77,9 @@ def test_fortran_reconstructs_initial_and_evolved_fields(reconstruction_backend,
         [str(reconstruction_backend), str(channels), mode, str(nparams), str(Z), str(width or 0)],
         check=True, capture_output=True, text=True,
     )
+    initial_time = next(float(line.split()[1]) for line in result.stdout.splitlines()
+                        if line.split()[:1] == ["START_TIME"])
+    assert initial_time == (1.0 if mode == "restart" else 0.0)
     rows = np.array([
         [float(value) for value in line.split()[1:]]
         for line in result.stdout.splitlines() if line.split()[:1] == ["ROW"]
